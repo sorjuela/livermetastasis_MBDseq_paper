@@ -29,26 +29,25 @@ samples$file <- paste0("../bam_dedup/dedups_local/", list.files("../bam_dedup/de
 #cross-correlation plot
 max.delay <- 500
 param <- readParam(restrict = paste0("chr",seq(1:22)))
-# dedup.on <- reform(param, dedup=TRUE)
-# x <- correlateReads(as.character(samples$file), max.delay, param=dedup.on)
-# 
-# pdf("myFigs/cross-correlation.pdf")
-# plot(0:max.delay, x, type="l", ylab="CCF", xlab="Delay (bp)")
-# dev.off()
-# 
-# maximizeCcf(x)
+dedup.on <- reform(param, dedup=TRUE)
+x <- correlateReads(as.character(samples$file), max.delay, param=dedup.on)
+
+pdf("myFigs/cross-correlation.pdf")
+plot(0:max.delay, x, type="l", ylab="CCF", xlab="Delay (bp)")
+dev.off()
+ 
+maximizeCcf(x)
 #180
 
 #window count
-# 
-# data <- windowCounts(as.character(samples$file), ext = 180,
-#                      width = 200, spacing = 10, shift = 0,
-#                      param=param, filter=30)
-# 
-# colnames(data) <- samples$sample
-# 
-# save(data, file = "csaw_data_nomapqfilt.RData")
-load("csaw_data_nomapqfilt.RData")
+data <- windowCounts(as.character(samples$file), ext = 180,
+                     width = 200, spacing = 10, shift = 0,
+                     param=param, filter=30)
+
+colnames(data) <- samples$sample
+ 
+save(data, file = "csaw_data_nomapqfilt.RData")
+#load("csaw_data_nomapqfilt.RData")
 
 #### Filter ####--------------------------------------------------------------------
 
@@ -147,69 +146,22 @@ tabcom <- Map( combineTests, mrg_id, tables)
 
 #### MDS2 ####--------------------------------------------------------------------
 
+load("csaw_DGEwithDisp_nomapqfilt.RData")
 #adj.counts <- cpm(y, log=TRUE)
-# plotMDS(adj.counts, top =100)
-# 
-# 
-# distcaltop <- function(x, top = 500){
-#   y <- cpm(x,log=TRUE,prior.count=2)
-#   bad <- rowSums(is.finite(y)) < ncol(y)
-#   if(any(bad)) y <- y[!bad,,drop=FALSE]
-#   nprobes <- nrow(y)
-#   nsamples <- ncol(y)
-#   top <- min(top,nprobes)
-#   #		Distance measure is mean of top squared deviations for each pair of arrays
-#   topindex <- nprobes-top+1L
-#   dd <- matrix(0,nrow=nsamples,ncol=nsamples)
-#   for (i in 2L:(nsamples))
-#     for (j in 1L:(i-1L))
-#       dd[i,j]=sqrt(mean(sort.int((y[,i]-y[,j])^2,partial=topindex)[topindex:nprobes]))
-#   return(dd)
-# }
-# 
-# MDS_MBD <- cmdscale(as.dist(distcaltop(y)),3)
-# 
-# #Colorful plot
-# changePlot <- function(MDS_MBD, samples){
-# cols <- c("blue","red","green","orange")
-# txcols <- c("black","blue")[(samples$sex=="F")+1]
-# cond <- factor(samples$condition, levels = c("normal_mucosa","colorectal_cancer",
-#                                              "metastasis_treated","metastasis_untreated"))
-# 
-# df <- data.frame(dim1 = MDS_MBD[,1], dim2 = MDS_MBD[,2])
-# 
-# ggplot(df)+
-#   scale_shape_identity() +
-#   geom_point(data=df, aes(x=dim1, y=dim2, shape = samples$sex, colour = cond), size=5) +
-#   geom_text(data =df, aes(x=dim1, y=dim2-.05, label = samples$sample), size=3)+
-#   scale_colour_manual(values=cols)+
-#   scale_shape_manual(values=c(19,17))+
-#   labs(x = "Dim1", y = "Dim2", title = "MBD 2D MDS Plot")+
-#   labs(shape = "Gender", colour = "Condition")+
-#   theme_bw()
 
-#### MDS3 ####--------------------------------------------------------------------
-# rgl::par3d(cex=1)
-# rgl::plot3d(x = MDS_MBD[,1], y = MDS_MBD[,2], z = MDS_MBD[,3],
-#             xlab = "1", ylab = "2", zlab = "3",
-#             col = cols[cond], type="s")
-# 
-# rgl::text3d(x = MDS_MBD[,1]-.05, y = MDS_MBD[,2]-.05, z = MDS_MBD[,3]-.05,
-#             cex = .8, font = 2, text = samples$sample, adj = 0.5,
-#             color = txcols)
-# 
-# subid <- rgl::currentSubscene3d()
-# }
-# 
-# 
-# changePlot(MDS_MBD, samples)
-
+pdf("myFigs/MDS_2D.pdf")
+plotMDS(adj.counts, top = 500)
+dev.off()
 
 
 #### Export tables ####--------------------------------------------------------------------------
-
+#setwd("/run/user/1000/gvfs/sftp:host=imlstaupo.uzh.ch/home/Shared_penticton/data/seq/mirco_mets_mbdseq/R")
+load("MBD_csaw_verify_mod_3grps2_nomapqfilt.RData")
 #Get locations
 res <- as.data.frame(merged$region)
+
+#export bed file of regions
+write.table(res[,1:3], "MBD_regions.bed", row.names=FALSE, quote=FALSE, sep="\t")
 
 # Select annotations for intersection with regions
 #CpG annot
@@ -303,4 +255,3 @@ res <- res[o,]
 save(res, file = "MBD_csaw_verify_mod_3grps2_nomapqfilt2.RData")
 write.table(res, "MBD_csaw_verify_mod_3grps2_nomapqfilt2.csv", row.names=FALSE, quote=FALSE, sep="\t")
 
-#TODO: export bed files
