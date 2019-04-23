@@ -16,6 +16,7 @@ library("BSgenome.Hsapiens.UCSC.hg19")
 library("csaw")
 library("BiSeq")
 library("annotatr")
+library("ROCR")
 
 #setwd("/run/user/1000/gvfs/sftp:host=imlssherborne.uzh.ch/home/Shared_penticton/data/seq/mirco_mets_mbdseq/R")
 
@@ -25,31 +26,36 @@ probes <- read.table(file="../../../../../Shared_taupo/steph/reference/130912_HG
 probes <- GRanges(probes$V1, IRanges(start = probes$V2, end = probes$V3)) #240.131
 probes <- probes[!seqnames(probes) %in% c("chrX", "chrY", "chrM")] #234943
 
-#number of somatic bp covered by probes 79,175,849 
+#number of somatic bp covered by probes 79,175,849 (almost 3% of somatic genome)
 sum(width(probes))/1000 #79,175.85 kb
 
 #hg19 cpg sites, based on https://support.bioconductor.org/p/95239/)
-chrs <- names(Hsapiens)[1:24]
+chrs <- names(Hsapiens)[1:22]
 cgs <- lapply(chrs, function(x) start(matchPattern("CG", Hsapiens[[x]])))
-cpgr <- do.call(c, lapply(1:24, 
+cpgr <- do.call(c, lapply(1:22, 
                           function(x) GRanges(names(Hsapiens)[x], 
-                                              IRanges(cgs[[x]], width = 2)))) #28,217,009
+                                              IRanges(cgs[[x]], width = 2)))) #26,752,702
 
 #number of somatic CpG sites covered
-overprobes <- subsetByOverlaps(cpgr, probes) #2,768,494
+overprobes <- subsetByOverlaps(cpgr, probes) #2,768,494 (10% of somatic CpGs in the entire genome)
 
 #number of CpG islands covered by Roche
 annotations <- build_annotations(genome = 'hg19', annotations = "hg19_cpg_islands")
 over <- subsetByOverlaps(annotations, probes)
 
 #load covered MBDseq regions
-load("MBD_csaw_verify_mod_3grps2_nomapqfilt2.RData")
-resGR <- GRanges(res$seqnames, IRanges(res$start, res$end), 
+load("MBD_csaw_verify_mod_3grps2_nomapqfilt3.RData") #<-- full res 
+#load("unsorted.res.3Vs3crc.RData") #<-- crc vs norm
+#load("unsorted.res.3Vs3crc.from0.RData") #<-- crc vs norm from 0
+
+resGR <- GRanges(res$seqnames, IRanges(res$start, res$end),
                  pval = res$cn.PValue,
                  zscore = qnorm(1-(res$cn.PValue/2)),
                  meanlogFC = res$cn.meanlogFC,
                  FDR = res$cn.FDR)
-#csawGR <-  
+
+
+#### get numbers ####
 #filtered by abundance 322,551
 
 sum(width(csawGR)) #249,547,640
@@ -58,7 +64,7 @@ sum(width(csawGR)) #249,547,640
 overcsaw <- subsetByOverlaps(cpgr, csawGR) #16,693,457, 7,623,905 for filtered data
 
 #CpG sites covered by both technologies
-over <- findOverlaps(overprobes, overcsaw) #1,828,983
+over <- findOverlaps(overprobes, overcsaw) #1,298,194 !!!!! FIX IN FIGURE 3.A !!!!!!!
 
 #"regions" covered by both, kb
 over <- GenomicRanges::intersect(probes, csawGR)
@@ -73,12 +79,10 @@ probesNocov <- subsetByOverlaps(probes,csawGR, invert = T) #152516/234943 65%
 #load MLH1 proficient samples results (DMCs)
 load("../../../../../sorjuela/serrated_pathway_paper/BiSulf/Data/nonCIMP.allclusters.trimmed.RData")
 
-#over <- findOverlaps(epiprobesDMCs,probes)
-#allClustersinProbes <- allClusters.trimmed[unique(sort(queryHits(over))),]
-#DMRs <- findDMRs(allClustersinProbes, max.dist = 200, diff.dir = T) #11,555
 DMRs <- findDMRs(allClusters.trimmed, max.dist = 200, diff.dir = F) #19,478
 
 DMRs <- subsetByOverlaps(DMRs,probes) #10,608
+
 DMRsfilt <- DMRs[width(DMRs) >= 3] #10,232
 
 DMRsfilt <- get_table_with_annots(DMRsfilt)
@@ -101,7 +105,6 @@ sum(resGR$direction == "up") #2020
 sum(resGR$direction == "down") #135
 resGRup <- resGR[resGR$direction == "up"]
 resGRdown <- resGR[resGR$direction == "down"]
-
 
 #unique hyper MBD
 over <- subsetByOverlaps(resGRup, DMRsfilthyper, invert =T) #1584
@@ -126,76 +129,88 @@ over <- findOverlaps(resGRdown, DMRsfilthypo) #8
 length(unique(sort(queryHits(over)))) # 8
 length(unique(sort(subjectHits(over)))) #8
 
-#### load adenoma samples results (DMCs) ####
-load("../../../../../sorjuela/serrated_pathway_paper/BiSulf/Data/AdenVsNorm.DMRs.RData")
+#### Get recall and ROC curves ####
 
-DMRsaden_crc <- subsetByOverlaps(biseqDMRs, DMRs) #87,529 / 19,478 / over: 9745
+DMRsaden_crc <- DMRs
 
-#get recall
-recall <- function(grreg){
-  tp <- length(subsetByOverlaps(grreg, resGR)) #all hits on the truth 1435
-  fn <- length(subsetByOverlaps(grreg, resGR, invert = T)) #all non hits on truth 7622
-  tpr <- tp/length(grreg) #0.15
-  tpr
-}
-recall(DMRsaden_crc)
-
-#get the meth.diff val for each overlapping DMR, and build the recall curve??
-
-over <- findOverlaps(resGR, DMRsaden_crc) #7779 TPs
-#subDMRsaden_crc <- DMRsaden_crc[subjectHits(over)]
-#subresGR <- resGR[queryHits(over)]
-
-#nonover <- subsetByOverlaps(DMRsaden_crc, resGR, invert = T) #1968 FN?
-nonover <- subsetByOverlaps(resGR, DMRsaden_crc, invert = T) #319,424 FP
-
-#Try to make a table
-mrecal <- data.frame(matrix(NA, nrow = 7779+1968+319424, ncol = 4 ))
-colnames(mrecal) <- c("score", "fdr", "zscore", "labels")
-
-#all D=1 7779+1968 = 9747
-mrecal$labels[1:9747] <- 1 #all D=1
-mrecal$score[1:7779] <- resGR$pval[queryHits(over)] #the ones that overlap with the truth, which should be TPs
-mrecal$fdr[1:7779] <- resGR$FDR[queryHits(over)]
-mrecal$zscore[1:7779] <- resGR$zscore[queryHits(over)]
-
-#the ones that overlap with the truth, which should be TPs
-
-mrecal$labels[is.na(mrecal$labels)] <- 0
-
-mrecal$score[mrecal$labels == 0] <- nonover$pval
-mrecal$fdr[mrecal$labels == 0] <- nonover$FDR
-mrecal$zscore[mrecal$labels == 0] <- nonover$zscore
-
-mrecal$score[is.na(mrecal$score)] <- 1
-mrecal$fdr[is.na(mrecal$fdr)] <- 1
-mrecal$zcore[is.na(mrecal$zscore)] <- 1
-
-#Sys.setenv(R_REMOTES_NO_ERRORS_FROM_WARNINGS="true")
-#library(benchmarkR)
-library(ROCR)
-
-# methods <- list(
-#   score = as.matrix(data.frame( 
-#     score = mrecal$score
-#   )), 
-#   padj = as.matrix(data.frame(score = mrecal$fdr)),
-#   labels = mrecal$labels)
+# make.recall <- function(resGR, DMRsaden_crc){
+#   over <- findOverlaps(resGR, DMRsaden_crc) #7779 TPs
+#   tps <- length(over)
+#   nonover <- subsetByOverlaps(DMRsaden_crc, resGR, invert = T) #1968 FN?
+#   fns <- length(nonover)
+#   nonover <- subsetByOverlaps(resGR, DMRsaden_crc, invert = T) #FPs?
+#   fps <- length(nonover)
+#   
+#   mrecal <- data.frame(matrix(NA, nrow = tps+fns+fps, ncol = 4 ))
+#   colnames(mrecal) <- c("score", "fdr", "zscore", "labels")
+#   
+#   #all D=1 7779+1968 = 9747
+#   mrecal$labels[1:(tps+fns)] <- 1 #all D=1
+#   mrecal$score[1:tps] <- resGR$pval[queryHits(over)] #the ones that overlap with the truth, which should be TPs
+#   mrecal$fdr[1:tps] <- resGR$FDR[queryHits(over)]
+#   mrecal$zscore[1:tps] <- resGR$zscore[queryHits(over)]
+#   
+#   # D=0
+#   mrecal$labels[is.na(mrecal$labels)] <- 0
+#   
+#   mrecal$score[mrecal$labels == 0] <- nonover$pval
+#   mrecal$fdr[mrecal$labels == 0] <- nonover$FDR
+#   mrecal$zscore[mrecal$labels == 0] <- nonover$zscore
+#   
+#   #add lowest score to NA vals
+#   mrecal$score[is.na(mrecal$score)] <- 0
+#   mrecal$fdr[is.na(mrecal$fdr)] <- 0
+#   mrecal$zcore[is.na(mrecal$zscore)] <- 0
+#   
+#   png("myFigs/precREC_TEastruth_cor.png")
+#   pred <- prediction(mrecal$zscore,mrecal$labels)
+#   perf <- performance(pred,"prec","rec")
+#   plot(perf, colorize=T)
+#   dev.off()
+#   
+#   png("myFigs/roc_TEastruth_cor.png")
+#   pred <- prediction(mrecal$zscore,mrecal$labels)
+#   perf <- performance(pred,"tpr","fpr")
+#   plot(perf, colorize=T)
+#   dev.off()
+# }
 # 
-# re <- SimResults(pval = methods$score, padj= methods$padj, labels = methods$labels)
+# make.recall(resGR, DMRsaden_crc)
 
-png("precREC_TEastruth.png")
+#### get recall for CpG sites ####
+#all sites captured by probes assay are considered the tested units
+
+load("betaRegs_Te_nocimpCRCsVsNorm/betaregAll_table.RData") #3 crc Vs 3 norm
+dmcs <- GRanges(betaregAll$chr,  #4,686,717
+                IRanges(betaregAll$pos, width =1), 
+                meth.diff=betaregAll$meth.diff,
+                pval = betaregAll$p.val,
+                p.li = p.adjust(betaregAll$p.val,method="holm"))
+
+dmcs <- subsetByOverlaps(dmcs, probes) #2,153,119
+
+mrecal <- data.frame(matrix(0, nrow = length(dmcs), ncol = 2))
+colnames(mrecal) <- c("zscore", "labels")
+mrecal$labels <- ifelse(dmcs$p.li <= 0.05 & abs(dmcs$meth.diff >= 0.2 ), 1, 0)
+
+over <- findOverlaps(dmcs, resGR)
+resGRcs <- dmcs[queryHits(over)] #2,296,797
+resGRcs$zscore <- resGR$zscore[subjectHits(over)]
+#resGRcs$logfc <- resGR$meanlogFC[subjectHits(over)]
+
+mrecal$zscore[queryHits(over)] <- resGRcs$zscore
+
+png("myFigs/precREC_ROC_ss.png", width = 800, height = 480)
+par(mfrow=c(1,2))
+
+myColor <- rev(RColorBrewer::brewer.pal(11, "Spectral"))
 pred <- prediction(mrecal$zscore,mrecal$labels)
 perf <- performance(pred,"prec","rec")
-plot(perf, colorize=T)
-dev.off()
+plot(perf, colorize = T, colorize.palette = myColor, lwd = 5)
 
-png("roc_TEastruth.png")
-pred <- prediction(mrecal$zscore,mrecal$labels)
 perf <- performance(pred,"tpr","fpr")
-plot(perf, colorize=T)
+plot(perf, colorize = T, colorize.palette = myColor, lwd = 5)
 dev.off()
-
 
 
 #### where are the non-overlapping dmrs? ####

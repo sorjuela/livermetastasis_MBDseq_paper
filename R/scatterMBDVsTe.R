@@ -51,99 +51,149 @@ calc_rates <- function(granges, cpgr, cr, gr){
 
 #add CpG rate
 cpgr$rates <- calc_rates(slopped.cpgr, cpgr, cr, gr)
-save(cpgr, file = "AllCpGs_GRanges.RData")
+#save(cpgr, file = "AllCpGs_GRanges.RData")
+load("AllCpGs_GRanges.RData")
 
 #### overlay CpG sites covered by both techs ####
-#load("../../../../../sorjuela/serrated_pathway_paper/BiSulf/Data/nonCIMP.allclusters.trimmed.RData")
-#hist(qnorm(1-(allClusters.trimmed$p.val/2)))
 
 load("betaRegs_Te_nocimpCRCsVsNorm/betaregAll_table.RData")
 dmcs <- GRanges(betaregAll$chr, 
                 IRanges(betaregAll$pos, width =1), 
                 meth.diff=betaregAll$meth.diff,
                 pval = betaregAll$p.val,
-                #p.li = allClusters.trimmed$p.li,
+                p.li = allClusters.trimmed$p.li)
                 #zscore= allClusters.trimmed$z.score,
-                myzscore=qnorm(1-(betaregAll$p.val/2))) #4,686,717
-#dmcshyper <- dmcs[dmcs$meth.diff > 0]
-#hist(dmcshyper$myzscore)
-#hist(dmcshyper$zscore)
+                #myzscore=qnorm(1-(betaregAll$p.val/2))) #4,686,717
 
-load("MBD_csaw_verify_mod_3grps2_nomapqfilt2.RData")
+dmcs <- subsetByOverlaps(dmcs, probes) #2,153,119
+
+load("MBD_csaw_verify_mod_3grps2_nomapqfilt3.RData")
+
+#filt test
+#filt <- (res$cn.logFC.down == 0 & res$cn.logFC.up == 0)
+#res.red <- res[!filt,]
+#res <- res.red
+
 resGR <- GRanges(res$seqnames, IRanges(res$start, res$end), 
                  pval = res$cn.PValue,
-                 zscore = qnorm(1-(res$cn.PValue/2)),
+                 #zscore = qnorm(1-(res$cn.PValue/2)),
                  meanlogFC = res$cn.meanlogFC)
 
 
 hist(resGR$zscore, xlim = c(0,4))
 
-#resGR <- resGR[res$cn.de == 1] #2155
-#resGRup <- resGR[resGR$direction == "up"]
-#resGRup <- resGR[resGR$meanlogFC > 0]
-#hist(resGRup$zscore)
-
 #get CpGsite from MBD
 over <- findOverlaps(cpgr, resGR)
 resGRcs <- cpgr[queryHits(over)]
-resGRcs$zscore <- resGR$zscore[subjectHits(over)]
-#resGRcs$logFC <- resGRup$logFCup[subjectHits(over)]
+#resGRcs$zscore <- resGR$zscore[subjectHits(over)]
 resGRcs$logFC <- resGR$meanlogFC[subjectHits(over)] #<-- this is the meanlogFC from script csaw_analysis
+resGRcs$pval <- resGR$pval[subjectHits(over)]
 
 #get overlaps between techs
 over <- findOverlaps(resGRcs, dmcs)
 shared <- resGRcs[queryHits(over)] #30,164
-shared$te.zscore <- dmcs$myzscore[subjectHits(over)]
+#shared$te.zscore <- dmcs$myzscore[subjectHits(over)]
 shared$meth.diff <- dmcs$meth.diff[subjectHits(over)]
+shared$te.pval <- dmcs$pval[subjectHits(over)]
 
 #add rate category
 shared.df <- as.data.frame(shared)
 shared.df$rate.category <- ifelse(shared.df$rates < 0.6, "Medium", "High")
 shared.df$rate.category <- ifelse(shared.df$rates < 0.3, "Low", shared.df$rate.category)
-save(shared.df, file="AllCs.sharedtechs.withrates.RData")
+#save(shared.df, file="AllCs.sharedtechs.withrates.RData")
 
-#shared.df$meth.diff <- shared.df$meth.diff / 100
-setwd("/run/user/1000/gvfs/sftp:host=imlssherborne.uzh.ch/home/Shared_penticton/data/seq/mirco_mets_mbdseq/R")
-load("AllCs.sharedtechs.withrates.RData") #2,297,602
-head(shared.df)
-
-#filter out infinite vals for zscores
-#shared.df <- shared.df[!is.infinite(shared.df$te.zscore),]
-#shared.df <- shared.df[!is.infinite(shared.df$zscore),]
-
-#refactor rate levels
+#relevel rate
 shared.df$rate.category <- factor(shared.df$rate.category, levels = c("Low", "Medium", "High"))
-shared.df$orient <- ifelse(shared.df$meth.diff >= 0.2 & shared.df$logFC >= 1, "hyper", "non")
-shared.df$orient <- ifelse(shared.df$meth.diff < -0.2 & shared.df$logFC < -1, "hypo", shared.df$orient)
 
-#zscore scatter...fix to make negative pvals
-#ggplot(shared.df, aes(x = te.zscore, y = zscore)) + 
-  #geom_point(color = "#313695", alpha = 1/15) +
-  #geom_smooth(method=lm) +
-  #geom_density_2d() +
-  #geom_bin2d(bins = 60) +
-  #tat_bin_2d(geom = "polygon") +
-  #facet_grid(~rate.category) +
-  #geom_abline(slope=slp, intercept=int) +
-  #theme_classic() 
+#add coloring vector
+shared.df$orient <- ifelse(shared.df$meth.diff > 0 & 
+                             shared.df$logFC > 0 & 
+                             shared.df$pval <= 0.05 &
+                             shared.df$te.pval <= 0.05,
+                           "hyper", "non")
+shared.df$orient <- ifelse(shared.df$meth.diff < 0 & 
+                             shared.df$logFC < 0 &
+                             shared.df$pval <= 0.05 &
+                             shared.df$te.pval <= 0.05, 
+                           "hypo", shared.df$orient)
 
-myColor <- rev(RColorBrewer::brewer.pal(11, "Spectral"))
+shared.df$orient <- ifelse(shared.df$meth.diff > 0 & 
+                             shared.df$pval > 0.05 &
+                             shared.df$te.pval <= 0.05, 
+                           "hyperTe", shared.df$orient)
 
-#png("MBDlogFCVsTEmethdiff_full_ratefacet.png")
-#meth diff scatter
-ggplot(shared.df, aes(x = meth.diff, y = logFC)) + #, color = orient)) + 
-  geom_point(alpha = 1/10) +
-  #geom_bin2d(bins = 60) +
-  #geom_hex(bins = 50, color = "black") +
+shared.df$orient <- ifelse(shared.df$logFC > 0 &
+                             shared.df$pval <= 0.05 &
+                             shared.df$te.pval > 0.05, 
+                           "hyperMBD", shared.df$orient)
+
+shared.df$orient <- ifelse(shared.df$meth.diff < 0 & 
+                             shared.df$pval > 0.05 &
+                             shared.df$te.pval <= 0.05, 
+                           "hypoTe", shared.df$orient)
+
+shared.df$orient <- ifelse(shared.df$logFC < 0 &
+                             shared.df$pval <= 0.05 &
+                             shared.df$te.pval > 0.05, 
+                           "hypoMBD", shared.df$orient)
+
+
+#### plot ####
+
+myColor <- RColorBrewer::brewer.pal(9, "Set1")[c(1:6,9)]
+
+#barplots
+d <- table(shared.df$rate.category, shared.df$orient)
+
+ex <- expand.grid(rownames(d),colnames(d))
+
+shared.counts <- data.frame(orient = ex$Var2, rate = ex$Var1, number.sites = as.vector(d))
+
+p1 <- ggplot(data=shared.counts, aes(x=orient, y=number.sites, fill = orient)) + 
+  geom_bar(stat="identity") + 
+  geom_text(aes(label = number.sites, x=orient, y=number.sites + 10000), size = 3) +
+  scale_fill_manual(values = myColor) +
+  labs(y = "Number of sites") +
+  facet_grid(~rate) +
+  theme_classic() +
+  theme(legend.position="bottom")
+  
+#main scatter
+
+tempd <- table(shared.df$rate.category)
+d <- data.frame(size = paste0("n = ",as.vector(tempd)), rate.category = names(tempd))
+
+p2 <- ggplot() + 
+  geom_point(data = shared.df, aes(x = meth.diff, y = logFC, color = orient)) +
+  geom_text(data = d, aes(label = size, x=-0.4, y=7), size = 3) +
   facet_grid(~rate.category) +
-  #scale_color_manual(values = c("#ABDDA4", "#D53E4F", "gray")) +
-  #scale_fill_gradientn(colours = myColor) +
+  scale_color_manual(values = myColor) +
   geom_hline(yintercept = 0, color = "white") +
   geom_vline(xintercept = 0, color = "white") +
-  theme_classic() 
-#dev.off()
+  theme_classic() +
+  theme(legend.position="none")
 
-#
+#geom_bin2d(bins = 60) +
+#geom_hex(bins = 50, color = "black") +
+
+#p3 <- grid.arrange(p2,p1, widths=4, heights=c(3, 2), ncol = 1, nrow = 2)
+p3 <- cowplot::plot_grid(p2, p1, ncol=1, nrow = 2, align="v", rel_widths = 1, rel_heights = c(2,1))
+ggplot2::ggsave("myFigs/MBDscatter_barplot_predFC.png", p3, width = 12, height = 12)
+ggplot2::ggsave("myFigs/MBDscatter_barplot.pdf", p3, width = 12, height = 12)
+
+
+#test with predFC
+ggplot() + 
+  geom_point(data = shared.df, aes(x = meth.diff, y = logFC)) +
+  #geom_text(data = d, aes(label = size, x=-0.4, y=7), size = 3) +
+  facet_grid(~rate.category) +
+  #scale_color_manual(values = myColor) +
+  geom_hline(yintercept = 0, color = "white") +
+  geom_vline(xintercept = 0, color = "white") +
+  theme_classic() +
+  theme(legend.position="none")
+
+ggsave("test.png")
 
 #### rerun BiSeq for CRC samples ####
 #up tp getting b vals since we dont need the zscores?
@@ -197,44 +247,3 @@ save(betaregAll, file = "betaRegs_Te_nocimpCRCsVsNorm/betaregAll_table.RData")
 #after getting this betaregAll table, run the script from the start using this table instead
 #of the hyper subset
     
-#### Make this plot for regions (cause this will never work?) ####
-DMRs <- findDMRs(allClusters.trimmed, max.dist = 200, diff.dir = F) #19,478
-
-DMRs <- subsetByOverlaps(DMRs,probes) #10,608
-DMRsfilt <- DMRs[width(DMRs) >= 3]
-DMRsfilthyper <- DMRsfilt[DMRsfilt$median.meth.diff > 0]
-
-over <- findOverlaps(resGRup, DMRsfilthyper)
-
-DMRsfilthyper$rates <- calc_rates(DMRsfilthyper, cpgr, cr, gr)
-
-
-sharedreg <- data.frame(MBDzcore = resGRup$zscore[queryHits(over)],
-                        TEzscore = DMRsfilthyper$zscore.median[subjectHits(over)],
-                        MBDrates = resGRup$rates[queryHits(over)],
-                        TErates = DMRsfilthyper$rates[subjectHits(over)])
-
-# sharedreg$rate.categoryMBD <- ifelse(sharedreg$MBDrates < 0.6, "Medium", "High")
-# sharedreg$rate.categoryMBD <- ifelse(sharedreg$MBDrates < 0.3, "low", sharedreg$rate.categoryMBD)
-# 
-# sharedreg$rate.categoryTE <- ifelse(sharedreg$TErates < 0.6, "Medium", "High")
-# sharedreg$rate.categoryTE <- ifelse(sharedreg$TErates < 0.3, "low", sharedreg$rate.categoryTE)
-
-save(sharedreg, file = "hypermethDMRs.sharedtechs.onlyzscores.RData")
-
-load("hypermethDMRs.sharedtechs.onlyzscores.RData")
-head(sharedreg)
-sharedreg <- sharedreg[!is.infinite(sharedreg$TEzscore),]
-
-ggplot(sharedreg, aes(x = MBDzcore, y = TEzscore, color = MBDrates)) + 
-  geom_point(alpha = 1/15) +
-  #myColor_scale_fill +
-  #geom_smooth(method=lm) +
-  #geom_density_2d() +
-  #geom_bin2d() +
-  #tat_bin_2d(geom = "polygon") +
-  facet_grid(~rate.categoryMBD) +
-  #geom_abline(slope=slp, intercept=int) +
-  #coord_cartesian(ylim = c(0,10))
-  theme_classic() 
-

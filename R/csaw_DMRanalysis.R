@@ -112,6 +112,7 @@ grp2
  
 mm <- model.matrix(~ 0 + grp2)
 #mm <- model.matrix(~grp2 + samps)
+#mm <- model.matrix(~0 + grp2 + samps)
 
 
 #Estimate dispersions
@@ -123,13 +124,13 @@ fit <- glmQLFit(y, mm, robust=TRUE)
 #save(fit, file = "csaw_fit_samp.RData")
 #load("csaw_fit_samp.RData")
 
-# png("myFigs/AveLogCPM.png")
-# o <- order(y$AveLogCPM)
-# plot(y$AveLogCPM[o], sqrt(y$trended.dispersion[o]), type="l", lwd=2,
-#      ylim=c(0, 1), xlab=expression("Ave."~Log[2]~"CPM"),
-#      ylab=("Biological coefficient of variation"))
-# plotQLDisp(fit)
-# dev.off()
+png("myFigs/AveLogCPM.png")
+o <- order(y$AveLogCPM)
+plot(y$AveLogCPM[o], sqrt(y$trended.dispersion[o]), type="l", lwd=2,
+     ylim=c(0, 1), xlab=expression("Ave."~Log[2]~"CPM"),
+     ylab=("Biological coefficient of variation"))
+plotQLDisp(fit)
+dev.off()
 
 #Testing for each contrast
 #treated and untreated together
@@ -138,7 +139,6 @@ mc <- makeContrasts(cn = "colorectal_cancer-normal_mucosa",
                     mn = "metastasis-normal_mucosa",
                     mc = "metastasis-colorectal_cancer",
                     levels=levels(grp2))
-
 
 
 lrts1 <- mclapply(as.data.frame(mc), function(u) {
@@ -161,13 +161,19 @@ mrg_id <- list(merged$id)[rep(1,3)]
 tabcom <- Map( combineTests, mrg_id, tables)
 
 # #calculate mean logFC per merged window for cancer Vs normal
+#change to predFC
+grp2 <- relevel(grp2, "normal_mucosa")
+mm <- model.matrix(~grp2)
+predlfc <- predFC(y, mm, prior.count = 1)
+
 # cntable <- lrts1$cn$table$logFC
-# uniqueid <- unique(sort(merged$id))
-# meanlogFC <- lapply(uniqueid, function(x){
-#   w <- which(merged$id == x)
-#   out <- mean(cntable[w])
-#   return(out)
-# })
+cntable <- predlfc[,2]
+uniqueid <- unique(sort(merged$id))
+meanlogFC <- lapply(uniqueid, function(x){
+  w <- which(merged$id == x)
+  out <- mean(cntable[w])
+  return(out)
+})
 
 #### MDS2 ####--------------------------------------------------------------------
 
@@ -245,38 +251,18 @@ geneAnnot <- sapply(uniQ, function(w){
 res$gene <- "NA"
 res$gene[uniQ] <- geneAnnot
 
-#Get average counts across regions for each sample
-# numRegions <- length(merged$region)
-# reads <- assays(data2)[["counts"]]
-# 
-# #TODO: maybe do this for AveLogCPM instead?
-# joinCounts <- sapply(1:numRegions, function(w){
-#   d <- reads[merged$id == w,]
-#   if(is.null(dim(d))){
-#     return(d)
-#   } else {
-#     return(colMeans(d))
-#   }
-# })
-# 
-# res <- cbind(res, t(joinCounts))
-
 #add cn.meanlogFC
+res$cn.meanlogFC <- unlist(meanlogFC) ###Run this before sorting!!!
 
-
-# res$cn.meanlogFC <- unlist(meanlogFC) ###Run this before sorting!!!
-# 
-# 
 #Get stats
 for(i in 1:length(lrts1)) {
   df <- cbind(tabcom[[i]], de = ifelse(tabcom[[i]]$FDR <= 0.05, 1, 0))
   colnames(df) <- paste(names(lrts1)[i], colnames(df), sep=".")
   res <- cbind(res, df)
 }
-# #479078 
-# #289522 mod
 
-save(res, file ="unsorted.res.olddesign.RData") 
+#save(res, file ="unsorted.res.olddesign_predFC.RData") 
+
 #sort
 pvals <- res[, grep("PValue", colnames(res))]
 rm <- rowMins(as.matrix(pvals))

@@ -11,205 +11,153 @@
 # Stephany Orjuela, October 2018
 #########################################################################################
 
-library("csaw")
-library("BSgenome.Hsapiens.UCSC.hg19")  
-
-#Get metadata
-samples <- read.table("../metadata.txt", header =T)
-samples <- samples[order(samples$sample),] 
-samples$file <- paste0("dedups/", list.files("dedups/", "_s.bam$"))
+library(csaw)
+library(ggplot2)
+library(RColorBrewer)
+library(gridExtra)
 
 # Counting Number of Reads in Each Bin
 # not include low quality reads and eliminate empty bins
 # Not use overlapping windows
-
-param <- readParam(restrict = paste0("chr",seq(1:22)), minq=50, dedup=TRUE)
-
-data <- windowCounts(as.character(samples$file), ext = 180,
-                     width = 200, spacing = 200, shift = 0,
-                     param=param, filter=30, bin = T)
-
-grdata <- rowRanges(data)
-
-#Get all CpG sites from hg19. Idea from https://support.bioconductor.org/p/95239/
-
-CGrates <- function(grdata){
-  chrs <- names(Hsapiens)[1:22]
-  cgs <- lapply(chrs, function(x) start(matchPattern("CG", Hsapiens[[x]])))
-  cpgr <- do.call(c, lapply(1:22, 
-                          function(x) GRanges(names(Hsapiens)[x], IRanges(cgs[[x]], width = 2))))
-
-  #Count number of CpG sites in window
-  over <- findOverlaps(grdata, cpgr)
-  sHits <- queryHits(over)
-  grdata$numCpGsites <- 0
-  grdata$numCpGsites[rle(sHits)$values] <- rle(sHits)$lengths
-
-  #Get all Cs fom hg19
-  cs <- lapply(chrs, function(x) start(matchPattern("C", Hsapiens[[x]])))
-  cgr <- do.call(c, lapply(1:22, 
-                          function(x) GRanges(names(Hsapiens)[x], IRanges(cs[[x]], width = 2))))
-
-  over <- findOverlaps(grdata, cgr)
-  sHits <- queryHits(over)
-  grdata$numCsites <- 0
-  grdata$numCsites[rle(sHits)$values] <- rle(sHits)$lengths
-
-  #Get all Gs fom hg19
-  gs <- lapply(chrs, function(x) start(matchPattern("G", Hsapiens[[x]])))
-  ggr <- do.call(c, lapply(1:22, 
-                         function(x) GRanges(names(Hsapiens)[x], IRanges(gs[[x]], width = 2))))
-
-  over <- findOverlaps(grdata, ggr)
-  sHits <- queryHits(over)
-  grdata$numGsites <- 0
-  grdata$numGsites[rle(sHits)$values] <- rle(sHits)$lengths
-
-  GCcont <- (grdata$numCpGsites / 200) / ((grdata$numCsites / 200) * (grdata$numGsites / 200))
-  return(GCcont)
-}
+# 
+# param <- readParam(restrict = paste0("chr",seq(1:22)), minq=50, dedup=TRUE)
+# 
+# data <- windowCounts(as.character(samples$file), ext = 180,
+#                      width = 200, spacing = 200, shift = 0,
+#                      param=param, filter=30, bin = T)
+# 
+# grdata <- rowRanges(data)
 
 #save(grdata, file = "GCcontent_per200bpbins.RData")
 
 ### Do same as above for regions not covered by MBD-seq
 
-grnotcov <- gaps(grdata)
-w <- strand(grnotcov) == "*"
-grnotcov <- grnotcov[w]
-grnotcov.tiles <- tile(grnotcov, width = 200)
-grnotcov.untiles <- unlist(grnotcov.tiles)
-
-grnotcov.rates <- CGrates(grnotcov.untiles)
-
-png("GContent_noncovered.png")
-hist(grnotcov.rates, xlim = c(0,1), breaks = 1000)
-dev.off()
-
-#### filter main gr by abundance ####
-
-abundances <- aveLogCPM(asDGEList(data))
-keep.simple <- abundances > -1 
-grdata_filt <- grdata[keep.simple]
-#save(grdata_filt, file = "GCcontent_per200bpbins_filt.RData")
-
-mmbdfilt.rates <- CGrates(grdata_filt)
-
-grnotcov <- gaps(grdata_filt)
-w <- strand(grnotcov) == "*"
-grnotcov <- grnotcov[w]
-grnotcov.tiles <- tile(grnotcov, width = 200)
-grnotcov.untiles <- unlist(grnotcov.tiles)
-
-grnotcov.rates <- CGrates(grnotcov.untiles)
-
-png("GContent_noncovered_filt.png")
-hist(grnotcov.rates, xlim = c(0,2), breaks = 1000)
-dev.off()
+# grnotcov <- gaps(grdata)
+# w <- strand(grnotcov) == "*"
+# grnotcov <- grnotcov[w]
+# grnotcov.tiles <- tile(grnotcov, width = 200)
+# grnotcov.untiles <- unlist(grnotcov.tiles)
+# 
+# grnotcov.rates <- CGrates(grnotcov.untiles)
+# 
+# png("GContent_noncovered.png")
+# hist(grnotcov.rates, xlim = c(0,1), breaks = 1000)
+# dev.off()
 
 #### Probe density ####
 
-probes <- read.table(file="../../probes/130912_HG19_CpGiant_4M_EPI.bed") #Available online from Roche
-probes <- GRanges(probes$V1, IRanges(start = probes$V2, end = probes$V3)) 
+probes <- read.table(file="../../../../../Shared_taupo/steph/reference/130912_HG19_CpGiant_4M_EPI.bed") #Available online from Roche
+probes <- GRanges(probes$V1, IRanges(start = probes$V2, end = probes$V3)) #240.131
 probes <- probes[!seqnames(probes) %in% c("chrX", "chrY", "chrM")]
 
-png("GContent_probes.png")
-hist(probes.rates, xlim = c(0,2), breaks = 50)
-dev.off()
+# png("GContent_probes.png")
+# hist(probes.rates, xlim = c(0,2), breaks = 50)
+# dev.off()
+# 
+# #make tiles from probes
+# probes.tiles <- tile(probes, width = 200)
+# probes.untiles <- unlist(probes.tiles)
+# 
+# probes.tiles.rates <- CGrates(probes.untiles)
+# 
+# png("GContent_probestiles.png")
+# hist(probes.tiles.rates, xlim = c(0,2), breaks = 50)
+# dev.off()
+# 
+# grnotcov <- gaps(probes)
+# w <- strand(grnotcov) == "*"
+# grnotcov <- grnotcov[w]
+# grnotcov.tiles <- tile(grnotcov, width = 200)
+# grnotcov.untiles <- unlist(grnotcov.tiles)
+# 
+# grnotcov.rates <- CGrates(grnotcov.untiles)
+# 
+# png("GContent_noncovered_probes.png")
+# hist(grnotcov.rates, xlim = c(0,2), breaks = 1000)
+# dev.off()
 
-#make tiles from probes
-probes.tiles <- tile(probes, width = 200)
-probes.untiles <- unlist(probes.tiles)
 
-probes.tiles.rates <- CGrates(probes.untiles)
+#### Do overlaping densities for each CpG site ####
 
-png("GContent_probestiles.png")
-hist(probes.tiles.rates, xlim = c(0,2), breaks = 50)
-dev.off()
+load("MBD_csaw_verify_mod_3grps2_nomapqfilt3.RData")
 
-grnotcov <- gaps(probes)
-w <- strand(grnotcov) == "*"
-grnotcov <- grnotcov[w]
-grnotcov.tiles <- tile(grnotcov, width = 200)
-grnotcov.untiles <- unlist(grnotcov.tiles)
+#filt test
+#filt <- (res$cn.logFC.down == 0 & res$cn.logFC.up == 0)
+#res.red <- res[!filt,]
+#res <- res.red
 
-grnotcov.rates <- CGrates(grnotcov.untiles)
+resGR <- GRanges(res$seqnames, IRanges(res$start, res$end), 
+                 pval = res$cn.PValue,
+                 zscore = qnorm(1-(res$cn.PValue/2)),
+                 meanlogFC = res$cn.meanlogFC)
 
-png("GContent_noncovered_probes.png")
-hist(grnotcov.rates, xlim = c(0,2), breaks = 1000)
-dev.off()
+#get CpGsite from MBD
+load("AllCpGs_GRanges.RData") #with calculated rates
+resGRcs <- subsetByOverlaps(cpgr, resGR)
+notcovres <- subsetByOverlaps(cpgr, resGRcs, invert = TRUE)
 
-#### Draw overlapping densities ####
-d <- data.frame(cpg_rates = c(mmbdfilt.rates, grnotcov.rates), 
-                cov=rep(c("covered", "not-covered"), 
-                         c(length(mmbdfilt.rates), length(grnotcov.rates))))
+#get CpG rates for probes
+overprobes <- subsetByOverlaps(cpgr, probes) #2,768,494
+notoverprobes <- subsetByOverlaps(cpgr, probes, invert = TRUE) #23,984,208
 
-pdf("MBD_GCcontent_density.pdf")
-ggplot(d) + 
-  geom_density(aes(x=cpg_rates, colour=cov, fill=cov), alpha=0.5) +
-  theme_classic() + 
-  xlab("CpG rates") + 
+overtechs <- subsetByOverlaps(resGRcs) #1,298,194
+uniquembd <- subsetByOverlaps(resGRcs, overprobes, invert = TRUE)
+uniquete <- subsetByOverlaps(overprobes, resGRcs, invert = TRUE)
+
+#plot
+
+d <- data.frame(cpg_rates = c(resGRcs$rates, notcovres$rates), 
+                State=rep(c("covered", "not covered"), 
+                        c(length(resGRcs), length(notcovres))))
+
+
+a1 <- ggplot(d) + 
+  geom_density(aes(x=cpg_rates, colour=State, fill=State), alpha=0.5) +
+  scale_fill_manual(values = brewer.pal(n = 3, name = "Set1")) +
+  scale_color_manual(values = brewer.pal(n = 3, name = "Set1")) +
+  theme_classic(base_size = 6) + 
+  labs(x = "CpG rates", title = "MBDe") + 
   coord_cartesian(xlim = c(0,2))
-dev.off()
 
-d <- data.frame(cpg_rates = c(probes.tiles.rates, grnotcovprobes.rates), 
-                cov=rep(c("covered", "not-covered"), 
-                        c(length(probes.tiles.rates), length(grnotcovprobes.rates))))
+d <- data.frame(cpg_rates = c(overprobes$rates, notoverprobes$rates), 
+                State=rep(c("covered", "not covered"), 
+                        c(length(overprobes), length(notoverprobes))))
 
-pdf("probes_GCcontent_density.pdf")
-ggplot(d) + 
-  geom_density(aes(x=cpg_rates, colour=cov, fill=cov), alpha=0.5) +
-  theme_classic() + 
-  xlab("CpG rates") + 
+a2 <- ggplot(d) + 
+  geom_density(aes(x=cpg_rates, colour=State, fill=State), alpha=0.5) +
+  scale_fill_manual(values = brewer.pal(n = 3, name = "Set1")) +
+  scale_color_manual(values = brewer.pal(n = 3, name = "Set1")) +
+  theme_classic(base_size = 6) + 
+  labs(x = "CpG rates", title = "Te") + 
   coord_cartesian(xlim = c(0,2))
 
-dev.off()
 
+d <- data.frame(cpg_rates = c(resGRcs$rates, overprobes$rates), 
+                State=rep(c("MBDe", "Te"), 
+                        c(length(resGRcs), length(overprobes))))
 
-d <- data.frame(cpg_rates = c(mmbdfilt.rates, probes.tiles.rates), 
-                cov=rep(c("MBD", "TE"), 
-                        c(length(mmbdfilt.rates), length(probes.tiles.rates))))
-
-pdf("MBDandTE_GCcontent_density.pdf")
-ggplot(d) + 
-  geom_density(aes(x=cpg_rates, colour=cov, fill=cov), alpha=0.5) +
-  theme_classic() + 
-  xlab("CpG rates") + 
+a3 <- ggplot(d) + 
+  geom_density(aes(x=cpg_rates, colour=State, fill=State), alpha=0.5) +
+  scale_fill_manual(values = brewer.pal(n = 3, name = "Set2")) +
+  scale_color_manual(values = brewer.pal(n = 3, name = "Set2")) +
+  theme_classic(base_size = 6) + 
+  labs(x = "CpG rates", title = "MBDe vs Te") + 
   coord_cartesian(xlim = c(0,2))
-dev.off()
 
-d <- data.frame(cpg_rates = c(grnotcov.rates, grnotcovprobes.rates), 
-                cov=rep(c("MBD", "TE"), 
-                        c(length(grnotcov.rates), length(grnotcovprobes.rates))))
+d <- data.frame(cpg_rates = c(uniquembd$rates, uniquete$rates, overtechs$rates), 
+                State=factor(rep(c("MBDe unique", "Te unique", "shared"), 
+                          c(length(uniquembd), length(uniquete), length(overtechs))), 
+                          levels = c("MBDe unique", "Te unique", "shared")))
 
-pdf("nonMBDandnonTE_GCcontent_density.pdf")
-ggplot(d) + 
-  geom_density(aes(x=cpg_rates, colour=cov, fill=cov), alpha=0.5) +
-  theme_classic() + 
-  xlab("CpG rates") + 
+
+a4 <- ggplot(d) + 
+  geom_density(aes(x=cpg_rates, colour=State, fill=State), alpha=0.5) +
+  scale_fill_manual(values = brewer.pal(n = 3, name = "Set2")) +
+  scale_color_manual(values = brewer.pal(n = 3, name = "Set2")) +
+  theme_classic(base_size = 6) + 
+  labs(x="CpG rates", title = "MBDe vs Te - intersections") + 
   coord_cartesian(xlim = c(0,2))
-dev.off()
 
-#### CpG density from Repitools ####
+a5 <- gridExtra::grid.arrange(a1,a2,a3,a4, ncol = 4)
 
-#this is probably wrong...
-window <- width(csawGR)
-
-CGfinds <- sequenceCalc(csawGR, Hsapiens, DNAString("CG"), positions = TRUE)
-
-CGfinds <- Map(function(winList, CGList){
-  if(!is.null(CGList)) abs(CGList-winList/2) else CGList
-}, window, CGfinds)
-
-cpgDensity <- mapply(function(winList, CGList){ 
-  sum(1-(CGList/(winList/2)))
-}, window, CGfinds)
-
-pdf("MBDregions_cpgdensity_abundancefilt.pdf")
-hist(cpgDensity, breaks = 200, xlim = c(0,200))
-dev.off()
-
-#i think this plot only gives you a
-# summary of the distribution of CpG density among reads/fragments
-#it changes if you change the seq.len
-csawlist <- GRangesList(csawGR)
-cpgDensityPlot(csawlist, organism = Hsapiens, w.function = "none", seq.len = 180)
+ggplot2::ggsave("myFigs/GCrates_perTech.pdf", a5, width = 15, height = 3)
