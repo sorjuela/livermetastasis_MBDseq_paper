@@ -17,7 +17,7 @@ library("UpSetR")
 library("cowplot")
 library("GenomicRanges")
 
-load("MBD_csaw_verify_mod_3grps2_nomapqfilt.RData")
+load("MBD_csaw_verify_mod_3grps2_nomapqfilt3.RData")
 
 #### Annotation plots ####
 #From a total of 289522 DMRs
@@ -337,3 +337,34 @@ build_plot2(DMRsfilt, "hyper", "hypo", draw_annot_cpg_general)
 build_plot2(DMRsfilt, "hyper", "hypo", draw_annot_cpg)
 
 dev.off()
+
+#### Venn diagram for CpG islands shared by techs ####
+
+library(annotatr)
+library(VennDiagram)
+annotscpg = c("hg19_cpg_islands")
+annotations = build_annotations(genome = 'hg19', annotations = annotscpg) #28691
+annotations <- annotations[seqnames(annotations) %in% paste0("chr", 1:23)]
+
+prob_islands <- subsetByOverlaps(annotations,probes) #25291
+res_islands <- subsetByOverlaps(annotations,resGR) #15423
+findOverlaps(prob_islands,res_islands) #14353
+
+draw.pairwise.venn(area1 = 25291,
+                   area2 = 15423,
+                   cross.area = 14353,
+                   #inverted = T,
+                   category = c("Te","MBDe"),
+                   lwd = c(4,4),
+                   col = c("#f68c64","#68c3a6"),
+                   fill = c("#fac5b1","#b3e1d2"),
+                   #alpha = rep(0.3, 2),
+                   cex = rep(2,3),
+                   label.col = rep("gray30", 3),
+                   fontfamily = rep("sans", 3),
+                   #cat.pos = c(-5,5),
+                   cat.dist = rep(0.05,1 ),
+                   cat.col = c("#fac5b1","#b3e1d2"),
+                   cat.fontfamily = rep("sans", 2))
+
+

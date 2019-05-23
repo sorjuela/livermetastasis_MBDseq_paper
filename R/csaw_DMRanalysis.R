@@ -32,24 +32,24 @@ samples$file <- paste0("../bam_dedup/dedups_local/", list.files("../bam_dedup/de
 #### Counting Number of Reads in Each Bin ####-----------------------------------------------
 
 #cross-correlation plot
-# max.delay <- 500
-# param <- readParam(restrict = paste0("chr",seq(1:22)))
-# dedup.on <- reform(param, dedup=TRUE)
-# x <- correlateReads(as.character(samples$file), max.delay, param=dedup.on)
-# 
-# pdf("myFigs/cross-correlation.pdf")
-# plot(0:max.delay, x, type="l", ylab="CCF", xlab="Delay (bp)")
-# dev.off()
-#  
-# maximizeCcf(x)
-# #180
-# 
-# #window count
-# data <- windowCounts(as.character(samples$file), ext = 180,
-#                      width = 200, spacing = 10, shift = 0,
-#                      param=param, filter=30) #743,44,976
-# 
-# colnames(data) <- samples$sample
+max.delay <- 500
+param <- readParam(restrict = paste0("chr",seq(1:22)))
+dedup.on <- reform(param, dedup=TRUE)
+x <- correlateReads(as.character(samples$file), max.delay, param=dedup.on)
+
+pdf("myFigs/cross-correlation.pdf")
+plot(0:max.delay, x, type="l", ylab="CCF", xlab="Delay (bp)")
+dev.off()
+
+maximizeCcf(x)
+#180
+
+#window count
+data <- windowCounts(as.character(samples$file), ext = 180,
+                     width = 200, spacing = 10, shift = 0,
+                     param=param, filter=30) #743,44,976
+
+colnames(data) <- samples$sample
 #  
 # save(data, file = "csaw_data_nomapqfilt.RData")
 #load("csaw_data_nomapqfilt.RData")
@@ -57,11 +57,11 @@ samples$file <- paste0("../bam_dedup/dedups_local/", list.files("../bam_dedup/de
 #### Filter ####--------------------------------------------------------------------
 
 #Independent filtering for count data
-# abundances <- aveLogCPM(asDGEList(data))
-# keep.simple <- abundances > -1 
-# data2 <- data[keep.simple,]
-# 
-# rm(data)
+abundances <- aveLogCPM(asDGEList(data))
+keep.simple <- abundances > -1
+data2 <- data[keep.simple,]
+
+rm(data)
 
 #merging region before diff to see difference after
 
@@ -70,36 +70,36 @@ samples$file <- paste0("../bam_dedup/dedups_local/", list.files("../bam_dedup/de
 #### Normalize ####--------------------------------------------------------------
 
 #Deal with trended bias
-# data2 <- normOffsets(data2, type = "loess", se.out=T)
-# 
-# data.off <- assay(data2, "offset")
-# 
-# pdf("myFigs/pre_norm_verify.pdf")
-# # MA plot without normalization.
-# ac.y <- asDGEList(data2)
-# adjc <- cpm(ac.y, log=TRUE)
-# abval <- aveLogCPM(ac.y)
-# mval <- adjc[,1]-adjc[,2]
-# fit <- loessFit(x=abval, y=mval)
-# smoothScatter(abval, mval, ylab="M", xlab="Average logCPM",
-#               main="Raw", ylim=c(-2,2), xlim=c(0, 7))
-# o <- order(abval)
-# lines(abval[o], fit$fitted[o], col="red")
-# 
-# # Repeating after normalization.
-# re.adjc <- log2(assay(data2)+0.5) - data.off/log(2)
-# mval <- re.adjc[,1]-re.adjc[,2]
-# fit <- loessFit(x=abval, y=mval)
-# smoothScatter(abval, re.adjc[,1]-re.adjc[,2], ylab="M", xlab="Average logCPM",
-#               main="Normalized", ylim=c(-2,2), xlim=c(0, 7))
-# lines(abval[o], fit$fitted[o], col="red")
-# dev.off()
+data2 <- normOffsets(data2, type = "loess", se.out=T)
+
+data.off <- assay(data2, "offset")
+
+pdf("myFigs/pre_norm_verify.pdf")
+# MA plot without normalization.
+ac.y <- asDGEList(data2)
+adjc <- cpm(ac.y, log=TRUE)
+abval <- aveLogCPM(ac.y)
+mval <- adjc[,1]-adjc[,2]
+fit <- loessFit(x=abval, y=mval)
+smoothScatter(abval, mval, ylab="M", xlab="Average logCPM",
+              main="Raw", ylim=c(-2,2), xlim=c(0, 7))
+o <- order(abval)
+lines(abval[o], fit$fitted[o], col="red")
+
+# Repeating after normalization.
+re.adjc <- log2(assay(data2)+0.5) - data.off/log(2)
+mval <- re.adjc[,1]-re.adjc[,2]
+fit <- loessFit(x=abval, y=mval)
+smoothScatter(abval, re.adjc[,1]-re.adjc[,2], ylab="M", xlab="Average logCPM",
+              main="Normalized", ylim=c(-2,2), xlim=c(0, 7))
+lines(abval[o], fit$fitted[o], col="red")
+dev.off()
 # 
 # save(data2, file = "csaw_data_nomapqfilt_abundfilt.RData")
 
 #### Testing for differential binding ####----------------------------------------
 
-load("csaw_data_nomapqfilt_abundfilt.RData")
+#load("csaw_data_nomapqfilt_abundfilt.RData")
 #Turn to DGElist
 y <- asDGEList(data2)
 
@@ -107,22 +107,17 @@ y <- asDGEList(data2)
 grp <- as.character(samples$condition)
 grp2 <- factor(ifelse(grp == "metastasis_untreated" | grp == "metastasis_treated", "metastasis", grp))
 grp2
-#samps <- factor(c(1,1,rep(0,14), 2,2,3,3,0))
-#length(samps)
  
 mm <- model.matrix(~ 0 + grp2)
-#mm <- model.matrix(~grp2 + samps)
-#mm <- model.matrix(~0 + grp2 + samps)
 
 
 #Estimate dispersions
 y <- estimateDisp(y, mm) 
-#save(y, file = "csaw_DGEwithDisp_nomapqfilt_samp.RData")
-#load("csaw_DGEwithDisp_nomapqfilt_samp.RData")
+#load("csaw_DGEwithDisp_nomapqfilt.RData")
 
 fit <- glmQLFit(y, mm, robust=TRUE)
-#save(fit, file = "csaw_fit_samp.RData")
-#load("csaw_fit_samp.RData")
+save(fit, file = "csaw_fit.RData")
+
 
 png("myFigs/AveLogCPM.png")
 o <- order(y$AveLogCPM)
@@ -143,12 +138,7 @@ mc <- makeContrasts(cn = "colorectal_cancer-normal_mucosa",
 
 lrts1 <- mclapply(as.data.frame(mc), function(u) {
   lrt <- glmQLFTest(fit, contrast=u)
-}, mc.cores = 6)
-
-# lrts1 <- mclapply(1:3, function(u) {
-#   lrt <- glmQLFTest(fit, coef=u)
-# }, mc.cores = 6)
-
+}, mc.cores = 3)
 
 #### Correct multiple testing ####-----------------------------------------------
 
@@ -177,21 +167,19 @@ meanlogFC <- lapply(uniqueid, function(x){
 
 #### MDS2 ####--------------------------------------------------------------------
 
-#load("csaw_DGEwithDisp_nomapqfilt.RData")
-#adj.counts <- cpm(y, log=TRUE)
+adj.counts <- cpm(y, log=TRUE)
 
-# pdf("myFigs/MDS_2D_samp.pdf")
-# plotMDS(adj.counts, top = 500)
-# dev.off()
+pdf("myFigs/MDS_2D_samp.pdf")
+plotMDS(adj.counts, top = 500)
+dev.off()
 
 
 #### Export tables ####--------------------------------------------------------------------------
-#setwd("/run/user/1000/gvfs/sftp:host=imlstaupo.uzh.ch/home/Shared_penticton/data/seq/mirco_mets_mbdseq/R")
 #Get locations
 res <- as.data.frame(merged$region)
 
 #export bed file of regions
-#write.table(res[,1:3], "MBD_regions.bed", row.names=FALSE, quote=FALSE, sep="\t")
+write.table(res[,1:3], "MBD_regions.bed", row.names=FALSE, quote=FALSE, sep="\t")
 
 # Select annotations for intersection with regions
 #CpG annot
@@ -220,9 +208,9 @@ cpgAnnot <- sapply(uniQ, function(w){
 
 res$CpG <- "NA"
 res$CpG[uniQ] <- cpgAnnot
-
-#genes
-annotsgene <- c("hg19_genes_promoters", "hg19_genes_3UTRs", "hg19_genes_introns", 
+# 
+# #genes
+annotsgene <- c("hg19_genes_promoters", "hg19_genes_3UTRs", "hg19_genes_introns",
                 "hg19_genes_exons", "hg19_genes_5UTRs", "hg19_genes_cds", "hg19_genes_intergenic",
                 "hg19_genes_1to5kb")
 
@@ -245,13 +233,13 @@ geneAnnot <- sapply(uniQ, function(w){
   sub <- df_dm_annotated[S[Q == w],]
   splited <- limma::strsplit2(sub$annot.id, ":")
   j <- paste(unique(paste(splited[,1], sub$annot.symbol, sep = ".")), collapse = "/")
-  return(j)  
+  return(j)
 })
 
 res$gene <- "NA"
 res$gene[uniQ] <- geneAnnot
-
-#add cn.meanlogFC
+# 
+# #add cn.meanlogFC
 res$cn.meanlogFC <- unlist(meanlogFC) ###Run this before sorting!!!
 
 #Get stats
@@ -267,14 +255,14 @@ for(i in 1:length(lrts1)) {
 pvals <- res[, grep("PValue", colnames(res))]
 rm <- rowMins(as.matrix(pvals))
 o <- order(rm)
-res <- res[o,]
+res <- res[o,] #322551
 # 
 # 
 # #save txt and bed files
-# write.table(res[res$cn.de == 1,1:3], file = "MBD_csaw_CRCVsNORM_DMRs_samp.bed",
-#             col.names = F,
-#             row.names=FALSE, 
-#             quote=FALSE, sep="\t")
-# save(res, file = "MBD_csaw_verify_mod_3grps2_nomapqfilt_samp.RData")
-# write.table(res, "MBD_csaw_verify_mod_3grps2_nomapqfilt2_samp.csv", row.names=FALSE, quote=FALSE, sep="\t")
-# 
+write.table(res[res$cn.de == 1,1:3], file = "MBD_csaw_CRCVsNORM_DMRs.bed",
+            col.names = F,
+            row.names=FALSE,
+            quote=FALSE, sep="\t")
+save(res, file = "MBD_csaw_verify_mod_3grps2_nomapqfilt_final.RData")
+write.table(res, "MBD_csaw_verify_mod_3grps2_nomapqfilt_final.csv", row.names=FALSE, quote=FALSE, sep="\t")
+

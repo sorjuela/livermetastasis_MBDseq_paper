@@ -45,6 +45,7 @@ over <- subsetByOverlaps(annotations, probes)
 
 #load covered MBDseq regions
 load("MBD_csaw_verify_mod_3grps2_nomapqfilt3.RData") #<-- full res 
+load("MBD_csaw_verify_mod_3grps2_nomapqfilt_final.RData")
 #load("unsorted.res.3Vs3crc.RData") #<-- crc vs norm
 #load("unsorted.res.3Vs3crc.from0.RData") #<-- crc vs norm from 0
 
@@ -52,26 +53,26 @@ resGR <- GRanges(res$seqnames, IRanges(res$start, res$end),
                  pval = res$cn.PValue,
                  zscore = qnorm(1-(res$cn.PValue/2)),
                  meanlogFC = res$cn.meanlogFC,
-                 FDR = res$cn.FDR)
+                 FDR = res$cn.FDR,
+                 direction = res$cn.direction)
 
 
 #### get numbers ####
-#filtered by abundance 322,551
 
-sum(width(csawGR)) #249,547,640
+sum(width(resGR)) #249,547,640
 
-#number of somatic CpG sites covered
-overcsaw <- subsetByOverlaps(cpgr, csawGR) #16,693,457, 7,623,905 for filtered data
+#number of somatic CpG sites covered by MBD
+overcsaw <- subsetByOverlaps(cpgr, resGR) #7,623,905 for filtered data (29%)
 
 #CpG sites covered by both technologies
-over <- findOverlaps(overprobes, overcsaw) #1,298,194 !!!!! FIX IN FIGURE 3.A !!!!!!!
+over <- findOverlaps(overprobes, overcsaw) #1,144,600 (4%)
 
 #"regions" covered by both, kb
-over <- GenomicRanges::intersect(probes, csawGR)
+over <- GenomicRanges::intersect(probes, resGR)
 sum(width(over)) #26,395,873
 
 #probes not covered by csaw
-probesNocov <- subsetByOverlaps(probes,csawGR, invert = T) #152516/234943 65%
+probesNocov <- subsetByOverlaps(probes,resGR, invert = T) #152516/234943 65%
 #266,057/322,551, 82% of MBD not covered by probes
 
 #### Overlap TE DMRs with MBD DMRs ####
@@ -108,9 +109,14 @@ resGRdown <- resGR[resGR$direction == "down"]
 
 #unique hyper MBD
 over <- subsetByOverlaps(resGRup, DMRsfilthyper, invert =T) #1584
+DMRstab <- (as(over, "data.frame"))
+write.table(DMRstab, "unique_hyper_DMRs_MBDe.csv", row.names=F, quote=FALSE, sep="\t")
 
 #unique hyper probes
 over <- subsetByOverlaps(DMRsfilthyper,resGRup,  invert =T) #827
+DMRstab <- (as(over, "data.frame"))
+write.table(DMRstab, "unique_hyper_DMRs_Te.csv", row.names=F, quote=FALSE, sep="\t")
+
 
 #overlap
 over <- subsetByOverlaps(resGRup, DMRsfilthyper) #436

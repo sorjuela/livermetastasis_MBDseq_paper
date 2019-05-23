@@ -52,7 +52,10 @@ calc_rates <- function(granges, cpgr, cr, gr){
 #add CpG rate
 cpgr$rates <- calc_rates(slopped.cpgr, cpgr, cr, gr)
 #save(cpgr, file = "AllCpGs_GRanges.RData")
-load("AllCpGs_GRanges.RData")
+load("AllCpGs_GRanges.RData") #26,752,702
+#total CpGs in low density areas  = 9,881,944
+#total CpGs in medium density areas  = 11,572,301
+#total CpGs in high density areas  = 5,298,457
 
 #### overlay CpG sites covered by both techs ####
 
@@ -67,7 +70,7 @@ dmcs <- GRanges(betaregAll$chr,
 
 dmcs <- subsetByOverlaps(dmcs, probes) #2,153,119
 
-load("MBD_csaw_verify_mod_3grps2_nomapqfilt3.RData")
+load("MBD_csaw_verify_mod_3grps2_nomapqfilt_final.RData")
 
 #filt test
 #filt <- (res$cn.logFC.down == 0 & res$cn.logFC.up == 0)

@@ -88,9 +88,11 @@ islesNoRegs <- subsetByOverlaps(annoisles,resGR, invert = T) #Why the FFF???
 s <- as.data.frame(islesNoRegs)
 write.table(s[,1:6], "Islands_without_MBDregions.csv", row.names=FALSE, quote=FALSE, sep="\t")
 
+
+
 #### Number of islands (either the island, or its shore, or shelf) "covered"
 annoisles <- annotations[grep("island", annotations$id)] #28691
-annoisles <- annoisles[seqnames(annoisles) %in% paste0("chr", c(1:23, "X", "Y"))] #27718
+annoisles <- annoisles[seqnames(annoisles) %in% paste0("chr", c(1:23))] #26641
 sloppedisles <- GenomicRanges::promoters(annoisles, upstream=4000, downstream=4000)
 
 resGR <- GRanges(res$seqnames, IRanges(res$start,
@@ -99,6 +101,8 @@ resGR <- GRanges(res$seqnames, IRanges(res$start,
 
 over <- findOverlaps(sloppedisles, resGR)
 length(sort(unique(queryHits(over)))) #24644
+
+
 
 #### number of ssIss covered hyperDMRs by Roche or MBD ####
 library(annotatr)
