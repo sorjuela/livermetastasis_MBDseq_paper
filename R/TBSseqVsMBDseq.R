@@ -44,7 +44,7 @@ annotations <- build_annotations(genome = 'hg19', annotations = "hg19_cpg_island
 over <- subsetByOverlaps(annotations, probes)
 
 #load covered MBDseq regions
-load("MBD_csaw_verify_mod_3grps2_nomapqfilt3.RData") #<-- full res 
+#load("MBD_csaw_verify_mod_3grps2_nomapqfilt3.RData") #<-- full res 
 load("MBD_csaw_verify_mod_3grps2_nomapqfilt_final.RData")
 #load("unsorted.res.3Vs3crc.RData") #<-- crc vs norm
 #load("unsorted.res.3Vs3crc.from0.RData") #<-- crc vs norm from 0
@@ -81,10 +81,12 @@ probesNocov <- subsetByOverlaps(probes,resGR, invert = T) #152516/234943 65%
 load("../../../../../sorjuela/serrated_pathway_paper/BiSulf/Data/nonCIMP.allclusters.trimmed.RData")
 
 DMRs <- findDMRs(allClusters.trimmed, max.dist = 200, diff.dir = F) #19,478
+DMRs <- findDMRs(allClusters.trimmed, max.dist = 2000, diff.dir = F) #13,807
+
 
 DMRs <- subsetByOverlaps(DMRs,probes) #10,608
 
-DMRsfilt <- DMRs[width(DMRs) >= 3] #10,232
+DMRsfilt <- DMRs[width(DMRs) >= 3] #10,232, 9334
 
 DMRsfilt <- get_table_with_annots(DMRsfilt)
 

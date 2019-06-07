@@ -5,7 +5,7 @@
 #########################################################################################
 # R script to draw delta-meth in both methods (tBS-seq and MBD-seq) relative to CpG density
 #
-# MBD-seq with 7 metastatis untreated, 5 metastasis treated, 6 CRC, 3 normal mucosa
+# MBD-seq with 6 CRC, 3 normal mucosa
 # Collaboration with Mirco Menigatti and Giancarlo Marra
 #
 # Stephany Orjuela, January 2019
@@ -198,55 +198,5 @@ ggplot() +
 
 ggsave("test.png")
 
-#### rerun BiSeq for CRC samples ####
-#up tp getting b vals since we dont need the zscores?
-for(i in 2:22){ 
-  
-  load(file=paste0("../../../../../sorjuela/serrated_pathway_paper/BiSulf/Data/CRCdata/", 
-                   paste0("chr",i,"BSraw.CRC.RData")))
-  #w <- which(seqnames(BSr) == paste0("chr",i))
-  #BSrchr <- BSr[w, ]
-  #rm(BSr)
-  #save(BSrchr, file = paste0("chr",i,"BSraw.RData"))
-  
-  #add patient effect
-  colData(BSrchr)$patient <- rep(1:6, each = 2)
-  
-  ### Define clusters ###----------------------------------------------------------------------------- 
-  
-  BSr.clust.unlim <- clusterSites(BSrchr,
-                                  groups = factor(colData(BSrchr)$group),
-                                  perc.samples = 0.8,
-                                  min.sites = 3,
-                                  max.dist =  500,
-                                  mc.cores = 10)
-  
-  ### smooth the methylation values of CpG sites within the clusters ###----------------------------- 
-  predictedMeth <- predictMeth(object = BSr.clust.unlim, h=1000, mc.cores = 10)
-  #save(predictedMeth, file=paste0("predictedMethchr",i,".RData"))
-  
-  ### Model methylation within a beta regression for each comparison ###-----------------------------
-  
-  #subset for groups, change depending on group of interest
-  s <- grep("^non$", colData(predictedMeth)$group)
-  n <- grep("NORMAL.non", colData(predictedMeth)$group)
-  
-  SNpMeth <- predictedMeth[,c(s,n)]
-  colData(SNpMeth)$group <- factor(colData(SNpMeth)$group, levels = c("non", "NORMAL.non"))
-  
-  betaResultsSN <- betaRegression(formula = ~group+patient, link = "probit", object = SNpMeth, type = "BR", mc.cores = 10) 
-  save(betaResultsSN, file=paste0("betaRegs_Te_nocimpCRCsVsNorm/betaRes.",i,".RData"))
-}
 
-load("betaRegs_Te_nocimpCRCsVsNorm/betaRes.1.RData")
-betaregAll <- betaResultsSN
-for(i in 2:22){
-  load(paste0("betaRegs_Te_nocimpCRCsVsNorm/betaRes.",i,".RData"))
-  betaregAll <- rbind(betaregAll, betaResultsSN)
-}
-betaregAll <- betaregAll[!is.na(betaregAll$meth.diff),]
-save(betaregAll, file = "betaRegs_Te_nocimpCRCsVsNorm/betaregAll_table.RData")
-
-#after getting this betaregAll table, run the script from the start using this table instead
-#of the hyper subset
     

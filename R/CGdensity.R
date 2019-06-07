@@ -11,38 +11,10 @@
 # Stephany Orjuela, October 2018
 #########################################################################################
 
-library(csaw)
+library(GenomicRanges)
 library(ggplot2)
 library(RColorBrewer)
 library(gridExtra)
-
-# Counting Number of Reads in Each Bin
-# not include low quality reads and eliminate empty bins
-# Not use overlapping windows
-# 
-# param <- readParam(restrict = paste0("chr",seq(1:22)), minq=50, dedup=TRUE)
-# 
-# data <- windowCounts(as.character(samples$file), ext = 180,
-#                      width = 200, spacing = 200, shift = 0,
-#                      param=param, filter=30, bin = T)
-# 
-# grdata <- rowRanges(data)
-
-#save(grdata, file = "GCcontent_per200bpbins.RData")
-
-### Do same as above for regions not covered by MBD-seq
-
-# grnotcov <- gaps(grdata)
-# w <- strand(grnotcov) == "*"
-# grnotcov <- grnotcov[w]
-# grnotcov.tiles <- tile(grnotcov, width = 200)
-# grnotcov.untiles <- unlist(grnotcov.tiles)
-# 
-# grnotcov.rates <- CGrates(grnotcov.untiles)
-# 
-# png("GContent_noncovered.png")
-# hist(grnotcov.rates, xlim = c(0,1), breaks = 1000)
-# dev.off()
 
 #### Probe density ####
 
@@ -50,41 +22,9 @@ probes <- read.table(file="../../../../../Shared_taupo/steph/reference/130912_HG
 probes <- GRanges(probes$V1, IRanges(start = probes$V2, end = probes$V3)) #240.131
 probes <- probes[!seqnames(probes) %in% c("chrX", "chrY", "chrM")]
 
-# png("GContent_probes.png")
-# hist(probes.rates, xlim = c(0,2), breaks = 50)
-# dev.off()
-# 
-# #make tiles from probes
-# probes.tiles <- tile(probes, width = 200)
-# probes.untiles <- unlist(probes.tiles)
-# 
-# probes.tiles.rates <- CGrates(probes.untiles)
-# 
-# png("GContent_probestiles.png")
-# hist(probes.tiles.rates, xlim = c(0,2), breaks = 50)
-# dev.off()
-# 
-# grnotcov <- gaps(probes)
-# w <- strand(grnotcov) == "*"
-# grnotcov <- grnotcov[w]
-# grnotcov.tiles <- tile(grnotcov, width = 200)
-# grnotcov.untiles <- unlist(grnotcov.tiles)
-# 
-# grnotcov.rates <- CGrates(grnotcov.untiles)
-# 
-# png("GContent_noncovered_probes.png")
-# hist(grnotcov.rates, xlim = c(0,2), breaks = 1000)
-# dev.off()
-
-
 #### Do overlaping densities for each CpG site ####
 
 load("MBD_csaw_verify_mod_3grps2_nomapqfilt3.RData")
-
-#filt test
-#filt <- (res$cn.logFC.down == 0 & res$cn.logFC.up == 0)
-#res.red <- res[!filt,]
-#res <- res.red
 
 resGR <- GRanges(res$seqnames, IRanges(res$start, res$end), 
                  pval = res$cn.PValue,
@@ -95,14 +35,41 @@ resGR <- GRanges(res$seqnames, IRanges(res$start, res$end),
 load("AllCpGs_GRanges.RData") #with calculated rates
 resGRcs <- subsetByOverlaps(cpgr, resGR)
 notcovres <- subsetByOverlaps(cpgr, resGRcs, invert = TRUE)
+ks.test(resGRcs$rates, notcovres$rates)
+
 
 #get CpG rates for probes
 overprobes <- subsetByOverlaps(cpgr, probes) #2,768,494
 notoverprobes <- subsetByOverlaps(cpgr, probes, invert = TRUE) #23,984,208
 
-overtechs <- subsetByOverlaps(resGRcs) #1,298,194
+ks.test(resGRcs$rates,overprobes$rates)
+# Two-sample Kolmogorov-Smirnov test
+# 
+# data:  resGRcs$rates and overprobes$rates
+# D = 0.18229, p-value < 2.2e-16
+# alternative hypothesis: two-sided
+wilcox.test(resGRcs$rates,overprobes$rates)
+# Wilcoxon rank sum test with continuity correction
+# 
+# data:  resGRcs$rates and overprobes$rates
+# W = 8.5941e+12, p-value < 2.2e-16
+# alternative hypothesis: true location shift is not equal to 0
+
+overtechs <- subsetByOverlaps(resGRcs, overprobes) #1,298,194
 uniquembd <- subsetByOverlaps(resGRcs, overprobes, invert = TRUE)
 uniquete <- subsetByOverlaps(overprobes, resGRcs, invert = TRUE)
+wilcox.test(overtechs$rates,uniquete$rates)
+# Wilcoxon rank sum test with continuity correction
+# 
+# data:  overtechs$rates and uniquete$rates
+# W = 9.5287e+11, p-value = 0.02402
+# alternative hypothesis: true location shift is not equal to 0
+ks.test(overtechs$rates,uniquete$rates)
+# Two-sample Kolmogorov-Smirnov test
+# 
+# data:  overtechs$rates and uniquete$rates
+# D = 0.1592, p-value < 2.2e-16
+# alternative hypothesis: two-sided
 
 #plot
 

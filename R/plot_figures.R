@@ -192,7 +192,7 @@ hyperM <- makeUpsetTable("hyper","hyper", cn.regsGR, mn.regsGR)
 
 
 #Make upset
-pdf("myFigs/upset.plots_mapq.pdf")
+pdf("myFigs/upset.plots.pdf")
 upset(as.data.frame(hypoM), 
       sets = c("metastasis-normal","cancer-normal"),
       keep.order = T,
@@ -220,6 +220,57 @@ upset(as.data.frame(hyperM),
       sets.bar.color = "gray23",
       text.scale = c(2,1.5,1.5,1,2,2.5),
       sets.x.label = "Total number of DMRs")
+dev.off()
+
+### Upset plots sites ####
+#choose differential sites for each comparison:
+
+cn.regs <- res[res$cn.de == 1,]
+cn.regsGR <- GRanges(cn.regs$seqnames, IRanges(cn.regs$start, cn.regs$end))
+mcols(cn.regsGR)$state <- ifelse(cn.regs$cn.direction == "up", "hyper", "hypo")
+over <- findOverlaps(cpgr, cn.regsGR)
+cn.sites <- cpgr[queryHits(over)]
+cn.sites$state <- cn.regsGR$state[subjectHits(over)]
+
+mn.regs <- res[res$mn.de == 1,]
+mn.regsGR <- GRanges(mn.regs$seqnames, IRanges(mn.regs$start, mn.regs$end))
+mcols(mn.regsGR)$state <- ifelse(mn.regs$mn.direction == "up", "hyper", "hypo")
+over <- findOverlaps(cpgr, mn.regsGR)
+mn.sites <- cpgr[queryHits(over)]
+mn.sites$state <- mn.regsGR$state[subjectHits(over)]
+
+hypoM <- makeUpsetTable("hypo","hypo", cn.sites, mn.sites)
+hyperM <- makeUpsetTable("hyper","hyper", cn.sites, mn.sites)
+
+#Make upset
+pdf("myFigs/upset.plots_sites.pdf")
+upset(as.data.frame(hypoM), 
+      sets = c("metastasis-normal","cancer-normal"),
+      keep.order = T,
+      mb.ratio = c(0.8, 0.2), 
+      mainbar.y.label = "No. of DMCs (hypomethylated)",
+      main.bar.color = "#3b56d8",
+      point.size = 3,
+      line.size = 1,
+      matrix.color = "black",
+      mainbar.y.max = 160000, 
+      sets.bar.color = "gray23",
+      text.scale = c(2,1.5,1.5,1,2,2.5),
+      sets.x.label = "Total number of DMCs")
+
+upset(as.data.frame(hyperM), 
+      sets = c("metastasis-normal","cancer-normal"),
+      keep.order = T,
+      mb.ratio = c(0.8, 0.2), 
+      mainbar.y.label = "No. of DMCs (hypermethylated)",
+      main.bar.color = "#e1cf22",
+      point.size = 3,
+      line.size = 1,
+      matrix.color = "black",
+      mainbar.y.max = 160000, 
+      sets.bar.color = "gray23",
+      text.scale = c(2,1.5,1.5,1,2,2.5),
+      sets.x.label = "Total number of DMCs")
 dev.off()
 
 #### More annotation ####
