@@ -1,6 +1,4 @@
 #!/usr/bin/env Rscript
-# chmod +x 
-# run as [R < scriptName.R --no-save]
 
 #########################################################################################
 # R script to calculate CG rates based on CGI determination (Gardiner-Garden & Frommer, 1987)
@@ -17,8 +15,8 @@ library(RColorBrewer)
 library(gridExtra)
 
 #### Probe density ####
-
-probes <- read.table(file="../../../../../Shared_taupo/steph/reference/130912_HG19_CpGiant_4M_EPI.bed") #Available online from Roche
+#Available online from Roche
+probes <- read.table(file="../../../../../Shared_taupo/steph/reference/130912_HG19_CpGiant_4M_EPI.bed")
 probes <- GRanges(probes$V1, IRanges(start = probes$V2, end = probes$V3)) #240.131
 probes <- probes[!seqnames(probes) %in% c("chrX", "chrY", "chrM")]
 

@@ -1,6 +1,4 @@
 #!/usr/bin/env Rscript
-# chmod +x 
-# run as [R < scriptName.R --no-save]
 
 #########################################################################################
 # R script to draw delta-meth in both methods (tBS-seq and MBD-seq) relative to CpG density
@@ -52,7 +50,7 @@ calc_rates <- function(granges, cpgr, cr, gr){
 #add CpG rate
 cpgr$rates <- calc_rates(slopped.cpgr, cpgr, cr, gr)
 #save(cpgr, file = "AllCpGs_GRanges.RData")
-load("AllCpGs_GRanges.RData") #26,752,702
+#load("AllCpGs_GRanges.RData") #26,752,702
 #total CpGs in low density areas  = 9,881,944
 #total CpGs in medium density areas  = 11,572,301
 #total CpGs in high density areas  = 5,298,457
@@ -63,23 +61,14 @@ load("betaRegs_Te_nocimpCRCsVsNorm/betaregAll_table.RData")
 dmcs <- GRanges(betaregAll$chr, 
                 IRanges(betaregAll$pos, width =1), 
                 meth.diff=betaregAll$meth.diff,
-                pval = betaregAll$p.val,
-                p.li = allClusters.trimmed$p.li)
-                #zscore= allClusters.trimmed$z.score,
-                #myzscore=qnorm(1-(betaregAll$p.val/2))) #4,686,717
+                pval = betaregAll$p.val)
 
 dmcs <- subsetByOverlaps(dmcs, probes) #2,153,119
 
 load("MBD_csaw_verify_mod_3grps2_nomapqfilt_final.RData")
 
-#filt test
-#filt <- (res$cn.logFC.down == 0 & res$cn.logFC.up == 0)
-#res.red <- res[!filt,]
-#res <- res.red
-
 resGR <- GRanges(res$seqnames, IRanges(res$start, res$end), 
                  pval = res$cn.PValue,
-                 #zscore = qnorm(1-(res$cn.PValue/2)),
                  meanlogFC = res$cn.meanlogFC)
 
 
@@ -88,14 +77,12 @@ hist(resGR$zscore, xlim = c(0,4))
 #get CpGsite from MBD
 over <- findOverlaps(cpgr, resGR)
 resGRcs <- cpgr[queryHits(over)]
-#resGRcs$zscore <- resGR$zscore[subjectHits(over)]
-resGRcs$logFC <- resGR$meanlogFC[subjectHits(over)] #<-- this is the meanlogFC from script csaw_analysis
+resGRcs$logFC <- resGR$meanlogFC[subjectHits(over)]
 resGRcs$pval <- resGR$pval[subjectHits(over)]
 
 #get overlaps between techs
 over <- findOverlaps(resGRcs, dmcs)
 shared <- resGRcs[queryHits(over)] #30,164
-#shared$te.zscore <- dmcs$myzscore[subjectHits(over)]
 shared$meth.diff <- dmcs$meth.diff[subjectHits(over)]
 shared$te.pval <- dmcs$pval[subjectHits(over)]
 
@@ -103,12 +90,11 @@ shared$te.pval <- dmcs$pval[subjectHits(over)]
 shared.df <- as.data.frame(shared)
 shared.df$rate.category <- ifelse(shared.df$rates < 0.6, "Medium", "High")
 shared.df$rate.category <- ifelse(shared.df$rates < 0.3, "Low", shared.df$rate.category)
-#save(shared.df, file="AllCs.sharedtechs.withrates.RData")
 
 #relevel rate
 shared.df$rate.category <- factor(shared.df$rate.category, levels = c("Low", "Medium", "High"))
 
-#add coloring vector
+#add coloring vector (ugly way of doing this...)
 shared.df$orient <- ifelse(shared.df$meth.diff > 0 & 
                              shared.df$logFC > 0 & 
                              shared.df$pval <= 0.05 &
@@ -141,15 +127,17 @@ shared.df$orient <- ifelse(shared.df$logFC < 0 &
                            "hypoMBD", shared.df$orient)
 
 
+# Calculate correlation for each facet
+library("plyr")
+cors <- ddply(shared.df, .(rate.category), summarise, cor = round(cor(meth.diff, logFC), 2))
+
 #### plot ####
 
 myColor <- RColorBrewer::brewer.pal(9, "Set1")[c(1:6,9)]
 
 #barplots
 d <- table(shared.df$rate.category, shared.df$orient)
-
 ex <- expand.grid(rownames(d),colnames(d))
-
 shared.counts <- data.frame(orient = ex$Var2, rate = ex$Var1, number.sites = as.vector(d))
 
 p1 <- ggplot(data=shared.counts, aes(x=orient, y=number.sites, fill = orient)) + 
@@ -161,14 +149,16 @@ p1 <- ggplot(data=shared.counts, aes(x=orient, y=number.sites, fill = orient)) +
   theme_classic() +
   theme(legend.position="bottom")
   
-#main scatter
-
+#main scatters
 tempd <- table(shared.df$rate.category)
 d <- data.frame(size = paste0("n = ",as.vector(tempd)), rate.category = names(tempd))
 
 p2 <- ggplot() + 
   geom_point(data = shared.df, aes(x = meth.diff, y = logFC, color = orient)) +
+  geom_smooth(data = shared.df, aes(x = meth.diff, y = logFC), method = lm, se = FALSE, 
+              color = "white") +
   geom_text(data = d, aes(label = size, x=-0.4, y=7), size = 3) +
+  geom_text(data = cors, aes(label = paste0("r = ", cor), x=-0.4, y=6.5), size = 3) +
   facet_grid(~rate.category) +
   scale_color_manual(values = myColor) +
   geom_hline(yintercept = 0, color = "white") +
@@ -176,27 +166,6 @@ p2 <- ggplot() +
   theme_classic() +
   theme(legend.position="none")
 
-#geom_bin2d(bins = 60) +
-#geom_hex(bins = 50, color = "black") +
-
-#p3 <- grid.arrange(p2,p1, widths=4, heights=c(3, 2), ncol = 1, nrow = 2)
 p3 <- cowplot::plot_grid(p2, p1, ncol=1, nrow = 2, align="v", rel_widths = 1, rel_heights = c(2,1))
-ggplot2::ggsave("myFigs/MBDscatter_barplot_predFC.png", p3, width = 12, height = 12)
-ggplot2::ggsave("myFigs/MBDscatter_barplot.pdf", p3, width = 12, height = 12)
+ggplot2::ggsave("myFigs/MBDscatter_barplot_predFC_lm.png", p3, width = 12, height = 12)
 
-
-#test with predFC
-ggplot() + 
-  geom_point(data = shared.df, aes(x = meth.diff, y = logFC)) +
-  #geom_text(data = d, aes(label = size, x=-0.4, y=7), size = 3) +
-  facet_grid(~rate.category) +
-  #scale_color_manual(values = myColor) +
-  geom_hline(yintercept = 0, color = "white") +
-  geom_vline(xintercept = 0, color = "white") +
-  theme_classic() +
-  theme(legend.position="none")
-
-ggsave("test.png")
-
-
-    
