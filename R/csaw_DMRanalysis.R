@@ -1,6 +1,4 @@
 #!/usr/bin/env Rscript
-# chmod +x 
-# run as [R < scriptName.R --no-save]
 
 #########################################################################################
 # R script to detect differential methylation using the csaw package.
@@ -16,20 +14,18 @@
 # Stephany Orjuela, August 2018
 #########################################################################################
 
-
 library("csaw")
 library("edgeR")
 library("annotatr")
 library("matrixStats")
 library("parallel")
-#library("rgl")
 
 #Get metadata
-samples <- read.table("../metadata.txt", header =T)
+samples <- read.table("../Data/metadata.txt", header =T)
 samples <- samples[order(samples$sample),] 
 samples$file <- paste0("../bam_dedup/dedups_local/", list.files("../bam_dedup/dedups_local/", "_s.bam$"))
 
-#### Counting Number of Reads in Each Bin ####-----------------------------------------------
+#### Counting Number of Reads in Each Bin ####----------------------------------
 
 #cross-correlation plot
 max.delay <- 500
@@ -54,7 +50,7 @@ colnames(data) <- samples$sample
 # save(data, file = "csaw_data_nomapqfilt.RData")
 #load("csaw_data_nomapqfilt.RData")
 
-#### Filter ####--------------------------------------------------------------------
+#### Filter ####----------------------------------------------------------------
 
 #Independent filtering for count data
 abundances <- aveLogCPM(asDGEList(data))
@@ -63,18 +59,14 @@ data2 <- data[keep.simple,]
 
 rm(data)
 
-#merging region before diff to see difference after
-
-#merged <- mergeWindows(rowRanges(data2), tol=50L) #679.854, after 322551
-
-#### Normalize ####--------------------------------------------------------------
+#### Normalize ####-------------------------------------------------------------
 
 #Deal with trended bias
 data2 <- normOffsets(data2, type = "loess", se.out=T)
-
 data.off <- assay(data2, "offset")
 
 pdf("myFigs/pre_norm_verify.pdf")
+
 # MA plot without normalization.
 ac.y <- asDGEList(data2)
 adjc <- cpm(ac.y, log=TRUE)
@@ -94,10 +86,10 @@ smoothScatter(abval, re.adjc[,1]-re.adjc[,2], ylab="M", xlab="Average logCPM",
               main="Normalized", ylim=c(-2,2), xlim=c(0, 7))
 lines(abval[o], fit$fitted[o], col="red")
 dev.off()
-# 
+ 
 # save(data2, file = "csaw_data_nomapqfilt_abundfilt.RData")
 
-#### Testing for differential binding ####----------------------------------------
+#### Testing for differential binding ####--------------------------------------
 
 #load("csaw_data_nomapqfilt_abundfilt.RData")
 #Turn to DGElist
@@ -105,11 +97,11 @@ y <- asDGEList(data2)
 
 #Make model
 grp <- as.character(samples$condition)
-grp2 <- factor(ifelse(grp == "metastasis_untreated" | grp == "metastasis_treated", "metastasis", grp))
+grp2 <- factor(ifelse(grp == "metastasis_untreated" | grp == "metastasis_treated", 
+                      "metastasis", grp))
 grp2
  
 mm <- model.matrix(~ 0 + grp2)
-
 
 #Estimate dispersions
 y <- estimateDisp(y, mm) 
@@ -150,7 +142,7 @@ tables <- lapply(lrts1,function(x){ return(x$table)})
 mrg_id <- list(merged$id)[rep(1,3)]
 tabcom <- Map( combineTests, mrg_id, tables)
 
-# #calculate mean logFC per merged window for cancer Vs normal
+#calculate mean logFC per merged window for cancer Vs normal
 #change to predFC
 grp2 <- relevel(grp2, "normal_mucosa")
 mm <- model.matrix(~grp2)
@@ -165,7 +157,7 @@ meanlogFC <- lapply(uniqueid, function(x){
   return(out)
 })
 
-#### MDS2 ####--------------------------------------------------------------------
+#### MDS2 ####------------------------------------------------------------------
 
 adj.counts <- cpm(y, log=TRUE)
 
@@ -174,7 +166,7 @@ plotMDS(adj.counts, top = 500)
 dev.off()
 
 
-#### Export tables ####--------------------------------------------------------------------------
+#### Export tables ####---------------------------------------------------------
 #Get locations
 res <- as.data.frame(merged$region)
 
@@ -238,9 +230,9 @@ geneAnnot <- sapply(uniQ, function(w){
 
 res$gene <- "NA"
 res$gene[uniQ] <- geneAnnot
-# 
-# #add cn.meanlogFC
-res$cn.meanlogFC <- unlist(meanlogFC) ###Run this before sorting!!!
+
+#add cn.meanlogFC
+res$cn.meanlogFC <- unlist(meanlogFC)
 
 #Get stats
 for(i in 1:length(lrts1)) {
@@ -256,13 +248,14 @@ pvals <- res[, grep("PValue", colnames(res))]
 rm <- rowMins(as.matrix(pvals))
 o <- order(rm)
 res <- res[o,] #322551
-# 
-# 
-# #save txt and bed files
+
+
+#save txt and bed files
 write.table(res[res$cn.de == 1,1:3], file = "MBD_csaw_CRCVsNORM_DMRs.bed",
-            col.names = F,
+            col.names = FALSE,
             row.names=FALSE,
             quote=FALSE, sep="\t")
 save(res, file = "MBD_csaw_verify_mod_3grps2_nomapqfilt_final.RData")
-write.table(res, "MBD_csaw_verify_mod_3grps2_nomapqfilt_final.csv", row.names=FALSE, quote=FALSE, sep="\t")
+write.table(res, "MBD_csaw_verify_mod_3grps2_nomapqfilt_final.csv", row.names=FALSE, 
+            quote=FALSE, sep="\t")
 
