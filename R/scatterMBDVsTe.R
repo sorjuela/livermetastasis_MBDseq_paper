@@ -57,7 +57,7 @@ cpgr$rates <- calc_rates(slopped.cpgr, cpgr, cr, gr)
 
 #### overlay CpG sites covered by both techs ####
 
-load("betaRegs_Te_nocimpCRCsVsNorm/betaregAll_table.RData")
+load("betaRegs_Te_nocimpCRCsVsNorm/betaregAll_table.RData") #too heavy
 dmcs <- GRanges(betaregAll$chr, 
                 IRanges(betaregAll$pos, width =1), 
                 meth.diff=betaregAll$meth.diff,
@@ -65,7 +65,7 @@ dmcs <- GRanges(betaregAll$chr,
 
 dmcs <- subsetByOverlaps(dmcs, probes) #2,153,119
 
-load("MBD_csaw_verify_mod_3grps2_nomapqfilt_final.RData")
+load("MBD_csaw_allregions.RData")
 
 resGR <- GRanges(res$seqnames, IRanges(res$start, res$end), 
                  pval = res$cn.PValue,

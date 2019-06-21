@@ -22,7 +22,7 @@ probes <- probes[!seqnames(probes) %in% c("chrX", "chrY", "chrM")]
 
 #### Do overlaping densities for each CpG site ####
 
-load("MBD_csaw_verify_mod_3grps2_nomapqfilt3.RData")
+load("MBD_csaw_allregions.RData")
 
 resGR <- GRanges(res$seqnames, IRanges(res$start, res$end), 
                  pval = res$cn.PValue,
@@ -30,7 +30,7 @@ resGR <- GRanges(res$seqnames, IRanges(res$start, res$end),
                  meanlogFC = res$cn.meanlogFC)
 
 #get CpGsite from MBD
-load("AllCpGs_GRanges.RData") #with calculated rates
+load("AllCpGs_GRanges.RData") #with calculated rates, too big
 resGRcs <- subsetByOverlaps(cpgr, resGR)
 notcovres <- subsetByOverlaps(cpgr, resGRcs, invert = TRUE)
 ks.test(resGRcs$rates, notcovres$rates)

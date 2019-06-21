@@ -2,8 +2,8 @@
 
 #########################################################################################
 # R script to detect differential methylation using the csaw package.
-# csaw is for differential binding, so the assumption is that this is DB for the 
-# methyl-binding protein. I think this makes sense.
+# csaw is for differential binding, so the assumption is that this analysis 
+# is DB for the methyl-binding protein. I think this makes sense.
 #
 # MBD-seq with 7 metastatis untreated, 5 metastasis treated, 6 CRC, 3 normal mucosa
 # Collaboration with Mirco Menigatti and Giancarlo Marra
@@ -21,7 +21,7 @@ library("matrixStats")
 library("parallel")
 
 #Get metadata
-samples <- read.table("../Data/metadata.txt", header =T)
+samples <- read.table("../Data/metadata.txt", header =TRUE)
 samples <- samples[order(samples$sample),] 
 samples$file <- paste0("../bam_dedup/dedups_local/", list.files("../bam_dedup/dedups_local/", "_s.bam$"))
 
@@ -46,9 +46,9 @@ data <- windowCounts(as.character(samples$file), ext = 180,
                      param=param, filter=30) #743,44,976
 
 colnames(data) <- samples$sample
-#  
-# save(data, file = "csaw_data_nomapqfilt.RData")
-#load("csaw_data_nomapqfilt.RData")
+
+#save(data, file = "../Data/csaw_data_nomapqfilt.RData")
+#load("../Data/csaw_data_nomapqfilt.RData")
 
 #### Filter ####----------------------------------------------------------------
 
@@ -87,11 +87,12 @@ smoothScatter(abval, re.adjc[,1]-re.adjc[,2], ylab="M", xlab="Average logCPM",
 lines(abval[o], fit$fitted[o], col="red")
 dev.off()
  
-# save(data2, file = "csaw_data_nomapqfilt_abundfilt.RData")
+# save(data2, file = "../Data/csaw_data_nomapqfilt_abundfilt.RData")
 
 #### Testing for differential binding ####--------------------------------------
 
-#load("csaw_data_nomapqfilt_abundfilt.RData")
+#load("../Data/csaw_data_nomapqfilt_abundfilt.RData")
+
 #Turn to DGElist
 y <- asDGEList(data2)
 
@@ -251,11 +252,11 @@ res <- res[o,] #322551
 
 
 #save txt and bed files
-write.table(res[res$cn.de == 1,1:3], file = "MBD_csaw_CRCVsNORM_DMRs.bed",
+write.table(res[res$cn.de == 1,1:3], file = "../Data/MBD_csaw_CRCVsNORM_DMRs.bed",
             col.names = FALSE,
             row.names=FALSE,
             quote=FALSE, sep="\t")
-save(res, file = "MBD_csaw_verify_mod_3grps2_nomapqfilt_final.RData")
-write.table(res, "MBD_csaw_verify_mod_3grps2_nomapqfilt_final.csv", row.names=FALSE, 
+save(res, file = "../Data/MBD_csaw_allregions.RData")
+write.table(res, "../Data/MBD_csaw_allregions.csv", row.names=FALSE, 
             quote=FALSE, sep="\t")
 
