@@ -31,7 +31,7 @@ save(bs, file = "BSobj.RData")
 #so I re-run the BSseq object from above
 
 DMRs <- dmrseq(bs=bs_new, testCovariate="group", cutoff = 0.05, 
-               BPPARAM = MulticoreParam(3),
+               BPPARAM = MulticoreParam(1),
                adjustCovariate = "patient")
 
 save(DMRs, file = "noncimpCRCsVsNORM_DMRs_dmrseq.RData")
