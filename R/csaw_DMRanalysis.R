@@ -22,8 +22,8 @@ library("parallel")
 
 #Get metadata
 samples <- read.table("../Data/metadata.txt", header =TRUE)
-samples <- samples[order(samples$sample),] 
-samples$file <- paste0("../bam_dedup/dedups_local/", list.files("../bam_dedup/dedups_local/", "_s.bam$"))
+samples$file <- paste0("../bam_dedup/dedups_local/", 
+                       list.files("../bam_dedup/dedups_local/", "_s.bam$"))
 
 #### Counting Number of Reads in Each Bin ####----------------------------------
 
