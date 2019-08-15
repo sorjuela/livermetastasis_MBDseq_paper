@@ -41,7 +41,7 @@ annotations <- build_annotations(genome = 'hg19', annotations = "hg19_cpg_island
 over <- subsetByOverlaps(annotations, probes)
 
 #load covered MBDseq regions
-load("MBD_csaw_verify_mod_3grps2_nomapqfilt_final.RData")
+load("../Data/MBD_csaw_allregions.RData")
 
 resGR <- GRanges(res$seqnames, IRanges(res$start, res$end),
                  pval = res$cn.PValue,
@@ -72,7 +72,8 @@ probesNocov <- subsetByOverlaps(probes,resGR, invert = T) #152516/234943 65%
 #### Overlap TE DMRs with MBD DMRs ####
 
 #load MLH1 proficient samples results (DMRs) from dmrseq_DMRanalysis script
-load("noncimpCRCsVsNORM_DMRs_dmrseq.RData") #105,580
+load("../Data/noncimpCRCsVsNORM_DMRs_dmrseq.RData") #105,580
+load("noncimpCRCsVsNORM_DMRs_dmrseq_block.RData")
 
 #DMRsfilt <- subsetByOverlaps(DMRs,probes)
 DMRsfilt <- DMRs[DMRs$qval < 0.05,]  #13,220
@@ -94,8 +95,8 @@ write.table(DMRsbed, "noncimpCRCsVsNORM_DMRs_Te_dmrseq.bed",col.names= F,
 # DMRsfilthypo <- DMRsfilt[DMRsfilt$median.meth.diff < 0]
 
 #positive beta is hypo
-sum(DMRsfilt$beta < 0 & DMRsfilt$qval < 0.05) #1306, dmrseq= 3187
-sum(DMRsfilt$beta > 0 & DMRsfilt$qval < 0.05) #8926 , dmrseq = 10,033
+sum(DMRsfilt$beta < 0 & DMRsfilt$qval < 0.05) #1306, dmrseq= 3187 , 2550
+sum(DMRsfilt$beta > 0 & DMRsfilt$qval < 0.05) #8926 , dmrseq = 10,033, 6311
 DMRsfilthyper <- DMRsfilt[DMRsfilt$beta < 0 & DMRsfilt$qval < 0.05]
 DMRsfilthypo <- DMRsfilt[DMRsfilt$beta > 0 & DMRsfilt$qval < 0.05]
 
@@ -108,31 +109,31 @@ resGRup <- resGR[resGR$direction == "up"]
 resGRdown <- resGR[resGR$direction == "down"]
 
 #unique hyper MBD
-over <- subsetByOverlaps(resGRup, DMRsfilthyper, invert =TRUE) #1584 , dmrseq = 617
+over <- subsetByOverlaps(resGRup, DMRsfilthyper, invert =TRUE) #1584 , dmrseq = 617, 737
 DMRstab <- (as(over, "data.frame"))
 write.table(DMRstab, "unique_hyper_DMRs_MBDe.csv", row.names=F, quote=FALSE, sep="\t")
 
 #unique hyper probes
-over <- subsetByOverlaps(DMRsfilthyper,resGRup,  invert =T) #827 , dmrse = 1843
+over <- subsetByOverlaps(DMRsfilthyper,resGRup,  invert =T) #827 , dmrse = 1843, 1329
 DMRstab <- (as(over, "data.frame"))
 write.table(DMRstab, "unique_hyper_DMRs_Te.csv", row.names=F, quote=FALSE, sep="\t")
 
 
 #overlap
-over <- findOverlaps(resGRup, DMRsfilthyper) #dmrseq = 1415
-length(unique(sort(queryHits(over)))) # 436 , dmrseq = 1403
-length(unique(sort(subjectHits(over)))) #479, dmrseq = 1344
+over <- findOverlaps(resGRup, DMRsfilthyper) #dmrseq = 1415, 1290
+length(unique(sort(queryHits(over)))) # 436 , dmrseq = 1403, 1283
+length(unique(sort(subjectHits(over)))) #479, dmrseq = 1344, 1221
 
 #unique hypo MBD 
-over <- subsetByOverlaps(resGRdown, DMRsfilthypo, invert =T) #127
+over <- subsetByOverlaps(resGRdown, DMRsfilthypo, invert =T) #127, dmrseq: 115
 
 #unique hypo probes
-over <- subsetByOverlaps(DMRsfilthypo,resGRdown,  invert =T) #8918
+over <- subsetByOverlaps(DMRsfilthypo,resGRdown,  invert =T) #8918, 6292
 
 #overlap
-over <- findOverlaps(resGRdown, DMRsfilthypo) #8, dmrseq = 25
-length(unique(sort(queryHits(over)))) # 8, 25
-length(unique(sort(subjectHits(over)))) #8, 24
+over <- findOverlaps(resGRdown, DMRsfilthypo) #8, dmrseq = 25, 20
+length(unique(sort(queryHits(over)))) # 8, 25, 20
+length(unique(sort(subjectHits(over)))) #8, 24, 19
 
 #### get recall for CpG sites ####
 #all sites captured by probes assay are considered the tested units
