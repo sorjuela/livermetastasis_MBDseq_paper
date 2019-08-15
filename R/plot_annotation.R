@@ -392,7 +392,7 @@ library(annotatr)
 library(VennDiagram)
 annotscpg = c("hg19_cpg_islands")
 annotations = build_annotations(genome = 'hg19', annotations = annotscpg) #28691
-annotations <- annotations[seqnames(annotations) %in% paste0("chr", 1:23)]
+annotations <- annotations[seqnames(annotations) %in% paste0("chr", 1:22)]
 
 prob_islands <- subsetByOverlaps(annotations,probes) #25291
 res_islands <- subsetByOverlaps(annotations,resGR) #15423
