@@ -4,7 +4,7 @@
 
 This repository contains the code for the following paper:
 
-* S Orjuela, M Menigatti, P Schraml, P Kambakamba, MD Robinson and G Marra: Sequencing of DNA captured with a methyl-CpG binding domain reveals a similar hypermethylator phenotype in colon cancers and liver metastases. (in prep.)
+* S Orjuela, M Menigatti, P Schraml, P Kambakamba, MD Robinson and G Marra: The DNA hypermethylation phenotype of colorectal cancer liver metastases resembles that of the primary colorectal cancers. (submitted.)
 
 The structure of this repository is as follows:
 
