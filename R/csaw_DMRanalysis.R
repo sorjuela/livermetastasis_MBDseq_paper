@@ -19,9 +19,11 @@ library("edgeR")
 library("annotatr")
 library("matrixStats")
 library("parallel")
+library("ggplot2")
+
 
 #Get metadata
-samples <- read.table("../Data/metadata.txt", header =TRUE)
+samples <- read.table("../Data/metadata.txt", header =TRUE,sep = "\t")
 samples$file <- paste0("../bam_dedup/dedups_local/", 
                        list.files("../bam_dedup/dedups_local/", "_s.bam$"))
 
@@ -158,14 +160,37 @@ meanlogFC <- lapply(uniqueid, function(x){
   return(out)
 })
 
-#### MDS2 ####------------------------------------------------------------------
+#### MDS ####------------------------------------------------------------------
 
-adj.counts <- cpm(y, log=TRUE)
+#Calculate mean cpm per merged window to calculate MDS
 
-pdf("myFigs/MDS_2D_samp.pdf")
-plotMDS(adj.counts, top = 500)
-dev.off()
+cpms <- cpm(y, log=TRUE)
 
+uniqueid <- unique(sort(merged$id))
+mean_cpms <- sapply(uniqueid, function(i){
+  w <- merged$id == i
+  if(sum(w) > 1) {
+      matrixStats::colMeans2(cpms[merged$id == i,])
+  } else{
+    cpms[merged$id == i,]
+  }
+})
+
+tmean_cpms <- t(mean_cpms)
+
+#get MDS
+mds <- plotMDS(tmean_cpms, top = 10000, plot = FALSE)$cmdscale.out
+df <- data.frame(dim1 = mds[,1], dim2 = mds[,2],
+                 names = samples$sample, Tissue = samples$condition)
+
+ggplot()+
+  geom_point(data = df, mapping = aes_(x=~dim1, y=~dim2, color=~Tissue),
+             size = 5) +
+  geom_text(data = df, mapping = aes_(x=~dim1, y=~dim2-0.1, label=~names),
+            size = 3) +
+  theme_bw() +
+  
+ggsave("myFigs/MDS_2D_samp.png")
 
 #### Export tables ####---------------------------------------------------------
 #Get locations

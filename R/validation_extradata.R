@@ -11,12 +11,13 @@
 #########################################################################################
 
 library(dplyr)
-library(ComplexHeatmap)
+#library(ComplexHeatmap)
 library(limma)
+library(ggplot2)
 
 #### Timp data ####
 
-f <- list.files("../Data/Validation_data/timp/", "txt")
+f <- list.files("../Data/Validation_data/timp/", ".txt")
 samp <- gsub("GSM[0-9]+\\-[0-9]+_colon_[a-z]+_","",f, perl = TRUE) %>%
         gsub(pattern = "\\.txt", replacement = "", perl = TRUE)
 tissue <- gsub("GSM[0-9]+\\-[0-9]+_colon_","",f, perl = TRUE) %>%
@@ -51,110 +52,133 @@ rownames(betas) <- key
 
 save(betas, file = "../Data/Validation_data/timp/betas_matrix.RData")
 
-dat <- reshape2::melt(mval)
+load("../Data/Validation_data/timp/betas_matrix.RData")
+
+#betas <- betas[,order(colnames(betas))]
+dat <- reshape2::melt(betas)
 dat$Tissue <- metadata$state[match(dat$Var2,metadata$sample)]
-ggplot(dat) + geom_density(aes(value, color = Tissue, group = Var2)) + theme_bw()
+#ggplot(dat) + geom_density(aes(value, color = Tissue, group = Var2)) + theme_bw()
+
+ggplot(dat) + 
+  geom_violin(aes(Var2,value, fill= Tissue, color = Tissue)) +
+  theme_bw()
 
 #MDS
-mval <- log2(betas/(1-betas))
+#mval <- log2(betas/(1-betas))
 
-limma::plotMDS(mval, top = 1000, col=as.integer(factor(metadata$state)))
+x <- limma::plotMDS(betas, top = 1000, plot = FALSE, dim.plot = c(1,2))
+mdsscale <- data.frame(Dim1 = x$cmdscale.out[,1], 
+                       Dim2 = x$cmdscale.out[,2],
+                       Samples = rownames(x$cmdscale.out),
+                       Tissue = metadata$state)
+timpmds <- ggplot(mdsscale) +
+  geom_point(aes(Dim1,Dim2, color=Tissue), size = 6) +
+  geom_text(aes(Dim1,Dim2-0.01, label =Samples), size = 3.5) + 
+  theme_bw()
+#ggplot2::ggsave("myFigs/Timpdat_MDS.png")
+timpmds
 
 #diagnostic plots
 means <- rowMeans(betas)
 vars <- matrixStats::rowVars(betas)
 plot(vars,means)
 
-#Do limma with betas
-design <- model.matrix(~0+state + patient, data = metadata)
-design
-cont <- limma::makeContrasts(statemetastasis-statenormal, 
-                             statecancer-statenormal, 
-                             statemetastasis-statecancer,
-                             levels = design)
-cont
+#Make plot to show similarity between metastasis and cancer
 
-fit <- limma::lmFit(mval,design)
-fit.cont <- limma::contrasts.fit(fit, contrasts = cont)
-fit2 <- limma::eBayes(fit.cont)
+x <- data.frame(
+  Met = rowMeans(betas[,metadata$state == "metastasis"]),
+  CRC = rowMeans(betas[,metadata$state == "cancer"]),
+  NM = rowMeans(betas[,metadata$state == "normal"]),
+  loc = "Genome"
+)
 
-testmat <- limma::decideTests(fit2)
-summary(testmat)
+#Annotate probes
+library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
+data(IlluminaHumanMethylation450kanno.ilmn12.hg19)
+data(Manifest)
+data(Islands.UCSC)
+#data(Locations)
+data(Other)
 
+y <- match(rownames(betas),Manifest$Name)
 
-#Make upset plot
+anno <- data.frame(probe = Manifest$Name[y], 
+                   island = Islands.UCSC$Relation_to_Island[y],
+                   gene = Other$UCSC_RefGene_Name[y],
+                   annot = Other$UCSC_RefGene_Group[y]
+)
+betas_isles <- betas[anno$island == "Island",]
 
-## Hyper
-#filter for all 0 rows, and rows with any negative, and NA rows
-hypermat <- testmat@.Data
-hypermat <- ifelse(hypermat == -1, 0,hypermat)
+xisles <- data.frame(
+  Met = rowMeans(betas_isles[,metadata$state == "metastasis"]),
+  CRC = rowMeans(betas_isles[,metadata$state == "cancer"]),
+  NM = rowMeans(betas_isles[,metadata$state == "normal"]),
+  loc = "Islands"
+)
 
-hypermat <- hypermat[!rowSums(hypermat) == 0 &
-                       !is.na(rowSums(hypermat)),]
+x <- rbind(x,xisles)
 
-dim(hypermat) #7,123
-head(hypermat)
-colnames(hypermat) <- c("Met Vs NM", "CRC Vs NM", 
-                        "Met Vs CRC")
+a <- ggplot(x, aes(NM, Met)) + 
+  geom_bin2d() + 
+  scale_fill_distiller(palette='RdBu', trans='log10') +
+  geom_abline() +
+  facet_wrap(~loc, nrow = 2) + 
+  theme_bw()+
+  theme(legend.position = "bottom",
+        legend.box = "vertical")
 
-upset_withnumbers <- function(m, color){
-  col_size = comb_size(m)
-  row_size = set_size(m)
-  
-  ht = UpSet(m, pt_size = unit(5, "mm"), lwd = 3, 
-             #set_order = order_vec,
-             top_annotation = 
-               HeatmapAnnotation("No. probes" = 
-                                   anno_barplot(comb_size(m), 
-                                                border = FALSE, 
-                                                gp = gpar(fill = color), 
-                                                height = unit(7, "cm"),
-                                                ylim = c(0, max(col_size)*1.1)
-                                   )),
-             right_annotation = upset_right_annotation(m,
-                                                       width = unit(4, "cm"),
-                                                       ylim = c(0, max(row_size)*1.1)))
-  ht = draw(ht)
-  
-  col_od = column_order(ht)
-  row_od = row_order(ht)
-  
-  decorate_annotation("No. probes", {
-    grid.text(col_size[col_od], 
-              seq_len(length(col_size)), 
-              unit(col_size[col_od], "native") + unit(2, "mm"), 
-              default.units = "native", just = "bottom",
-              gp = gpar(fontsize = 8))
-  })
-  decorate_annotation("Set size", {
-    grid.text(row_size[row_od], 
-              unit(row_size[row_od], "native") + unit(2, "mm"), 
-              rev(seq_len(length(row_size))), 
-              default.units = "native", just = "bottom", rot = -90,
-              gp = gpar(fontsize = 8))
-  })
-}
+b <- ggplot(x, aes(NM, CRC)) + 
+  geom_bin2d() + 
+  scale_fill_distiller(palette='RdBu', trans='log10') +
+  geom_abline() +
+  facet_wrap(~loc, nrow = 2) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        legend.box = "vertical")
 
-m <- make_comb_mat(hypermat)
-upset_withnumbers(m, "#e1cf22")
-
-## Hypo
-#filter for all 0 rows, and rows with any negative, and NA rows
-hypomat <- testmat@.Data
-hypomat <- ifelse(hypomat == 1, 0,hypomat)
-hypomat <- abs(hypomat)
-
-hypomat <- hypomat[!rowSums(hypomat) == 0 &
-                     !is.na(rowSums(hypomat)),]
+c <- ggplot(x, aes(Met, CRC)) + 
+  geom_bin2d() + 
+  scale_fill_distiller(palette='RdBu', trans='log10') +
+  geom_abline() +
+  facet_wrap(~loc, nrow = 2) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        legend.box = "vertical")
 
 
-dim(hypomat) #14,634
-head(hypomat)
-colnames(hypomat) <- c("Met Vs NM", "CRC Vs NM", 
-                       "Met Vs CRC")
-m <- make_comb_mat(hypomat)
-upset_withnumbers(m, "#3b56d8")
+cowplot::plot_grid(a,b,c)
 
+mid <- cowplot::plot_grid(a,b,c, ncol = 3)
+#ggplot2::ggsave("myFigs/Timpdat_betaScatters.png", width = 10, height = 5)
+mid
+
+#Make Figure4C-D from Timp paper
+x <- data.frame(meth = c(colMeans(betas),colMeans(betas_isles)),
+                loc = c(rep("Genome",18),rep("Islands",18)),
+                Samples = rep(gsub("_[a-z]+","",colnames(betas)),2),
+                Tissue= factor(rep(metadata$state,2), levels=c("normal",
+                                                        "cancer",
+                                                        "metastasis")))
+
+mean_mean <- aggregate(meth ~ loc+Tissue, mean, data=x)
+cols <- scales::hue_pal()(3)[c(3,1,2)]
+
+jitt <- ggplot(x,aes(Tissue,meth)) +
+  #geom_jitter(position = position_jitter(seed = 1)) +
+  geom_line(aes(group = Samples), color = "gray") +
+  geom_point(aes(color = Tissue), size = 3) +
+  theme_bw() +
+  geom_crossbar(data=mean_mean, aes(ymin = meth, ymax = meth, color = Tissue),
+                width = 0.5) +
+  facet_wrap(~loc,nrow = 2, scales = "free") +
+  ylab("Average methylation") +
+  scale_color_manual(values = cols)
+
+jitt
+
+cowplot::plot_grid(timpmds,mid,jitt, ncol = 1, nrow = 3, labels = "AUTO",
+                   axis = "r", align ="v", rel_widths = c(1,2,1))
+ggplot2::ggsave("myFigs/Timpdat_suppfig.png", width = 8, height = 11)
 
 
 #### Martinez-C data ####
@@ -195,65 +219,111 @@ rownames(betas) <- key
 
 save(betas, file = "../Data/Validation_data/martinez/betas_matrix.RData")
 
-#Transform beta vals
-betas_trans <- asin(2*betas-1)
-bad <- BiocGenerics::rowSums(is.finite(betas_trans)) < ncol(betas_trans)
-if(any(bad)) betas_trans <- betas_trans[!bad,,drop=FALSE]
+#Transform beta vals?
+#betas_trans <- asin(2*betas-1)
+#bad <- BiocGenerics::rowSums(is.finite(betas_trans)) < ncol(betas_trans)
+#if(any(bad)) betas_trans <- betas_trans[!bad,,drop=FALSE]
 
 # Get mvals?
-mval <- log2(betas/(1-betas))
+#mval <- log2(betas/(1-betas))
 
 # MDS
-limma::plotMDS(mval, top = 1000, col=as.integer(factor(metadata$state)))
+x <- limma::plotMDS(betas, top = 1000, plot = FALSE, dim.plot = c(1,2))
+mdsscale <- data.frame(Dim1 = x$cmdscale.out[,1], 
+                       Dim2 = x$cmdscale.out[,2],
+                       Samples = rownames(x$cmdscale.out),
+                       Tissue = factor(metadata$state,
+                                       levels = (c("MD","S","N"))))
+mds <- ggplot(mdsscale) +
+  geom_point(aes(Dim1,Dim2, color=Tissue), size = 6) +
+  geom_text(aes(Dim1,Dim2-0.02, label =Samples)) + 
+  scale_color_discrete(name = "Tissue") +
+  theme_bw()
+mds
+#ggplot2::ggsave("myFigs/Martinezdat_MDS.png")
 
-#Do limma with mvals
-design <- model.matrix(~0+state + patient, data = metadata)
-design
-cont <- limma::makeContrasts(stateS-stateN, 
-                             stateMD-stateN, 
-                             stateS-stateMD,
-                             levels = design)
-cont
+#Plots
+x <- data.frame(
+  Met = rowMeans(betas[,metadata$state == "S"]),
+  CRC = rowMeans(betas[,metadata$state == "MD"]),
+  NM = rowMeans(betas[,metadata$state == "N"]),
+  loc = "Genome"
+)
 
-#fit <- limma::lmFit(mval,design)
-fit <- limma::lmFit(betas,design)
-fit.cont <- limma::contrasts.fit(fit, contrasts = cont)
-fit2 <- limma::eBayes(fit.cont)
-testmat <- limma::decideTests(fit2)
-summary(testmat)
+y <- match(rownames(betas),Manifest$Name)
+
+anno <- data.frame(probe = Manifest$Name[y], 
+                   island = Islands.UCSC$Relation_to_Island[y],
+                   gene = Other$UCSC_RefGene_Name[y],
+                   annot = Other$UCSC_RefGene_Group[y]
+)
+betas_isles <- betas[anno$island == "Island",]
+
+xisles <- data.frame(
+  Met = rowMeans(betas_isles[,metadata$state == "S"]),
+  CRC = rowMeans(betas_isles[,metadata$state == "MD"]),
+  NM = rowMeans(betas_isles[,metadata$state == "N"]),
+  loc = "Islands"
+)
+
+x <- rbind(x,xisles)
+
+a <- ggplot(x, aes(NM, Met)) + 
+  geom_bin2d() + 
+  scale_fill_distiller(palette='RdBu', trans='log10') +
+  geom_abline() +
+  facet_wrap(~loc, nrow = 2) + 
+  theme_bw()+
+  theme(legend.position = "bottom",
+        legend.box = "vertical")
+
+b <- ggplot(x, aes(NM, CRC)) + 
+  geom_bin2d() + 
+  scale_fill_distiller(palette='RdBu', trans='log10') +
+  geom_abline() +
+  facet_wrap(~loc, nrow = 2) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        legend.box = "vertical")
+
+c <- ggplot(x, aes(Met, CRC)) + 
+  geom_bin2d() + 
+  scale_fill_distiller(palette='RdBu', trans='log10') +
+  geom_abline() +
+  facet_wrap(~loc, nrow = 2) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        legend.box = "vertical")
 
 
-#Make upset plot
+mid <- cowplot::plot_grid(a,b,c, ncol = 3)
+mid
 
-## Hyper
-#filter for all 0 rows, and rows with any negative, and NA rows
-hypermat <- testmat@.Data
-hypermat <- ifelse(hypermat == -1, 0,hypermat)
+#Make Figure4C-D from Timp paper
+x <- data.frame(meth = c(colMeans(betas, na.rm = TRUE),
+                         colMeans(betas_isles, na.rm = TRUE)),
+                loc = c(rep("Genome",12),rep("Islands",12)),
+                Samples = rep(colnames(betas),2),
+                Tissue= factor(rep(metadata$state,2), levels=c("N",
+                                                               "MD",
+                                                               "S")))
 
-hypermat <- hypermat[!rowSums(hypermat) == 0 &
-                       !is.na(rowSums(hypermat)),]
+mean_mean <- aggregate(meth ~ loc+Tissue, mean, data=x)
+cols <- scales::hue_pal()(3)[c(3,1,2)]
 
-dim(hypermat) #72,547
-head(hypermat)
-colnames(hypermat) <- c("Met Vs NM", "CRC Vs NM", 
-                        "Met Vs CRC")
+jitt <- ggplot(x,aes(Tissue,meth,color = Tissue)) +
+  geom_jitter(width = 0.15) +
+  theme_bw() +
+  geom_crossbar(data=mean_mean, aes(ymin = meth, ymax = meth, color = Tissue),
+                width = 0.5) +
+  facet_wrap(~loc,nrow = 2, scales = "free") +
+  ylab("Average methylation") +
+  scale_color_manual(values = cols)
 
-m <- make_comb_mat(hypermat)
-upset_withnumbers(m, "#e1cf22")
+jitt
 
-## Hypo
-#filter for all 0 rows, and rows with any negative, and NA rows
-hypomat <- testmat@.Data
-hypomat <- ifelse(hypomat == 1, 0,hypomat)
-hypomat <- abs(hypomat)
-
-hypomat <- hypomat[!rowSums(hypomat) == 0 &
-                       !is.na(rowSums(hypomat)),]
+cowplot::plot_grid(mds,mid,jitt, ncol = 1, nrow = 3, labels = "AUTO",
+                   axis = "r", align ="v", rel_widths = c(1,2,1))
+ggplot2::ggsave("myFigs/Martinezdat_suppfig.png", width = 8, height = 11)
 
 
-dim(hypomat) #27,797
-head(hypomat)
-colnames(hypomat) <- c("Met Vs NM", "CRC Vs NM", 
-                        "Met Vs CRC")
-m <- make_comb_mat(hypomat)
-upset_withnumbers(m, "#3b56d8")
