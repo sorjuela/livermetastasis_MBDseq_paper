@@ -15,7 +15,10 @@ library("UpSetR")
 library("cowplot")
 library("GenomicRanges")
 
-load("MBD_csaw_allregions.RData")
+#load("../Data/MBD_csaw_allregions.RData")
+#load("../Data/MBD_csaw_verify_mod_3grps2_nomapqfilt3.RData")
+load("../Data/MBD_csaw_verify_mod_3grps2_nomapqfilt.RData")
+
 
 #### Annotation plots ####
 
@@ -277,13 +280,13 @@ mn.regs$state <- ifelse(mn.regs$mn.direction == "up", "hyper", "hypo")
 
 pdf("myFigs/DMR_annotation_mapq.pdf")
 
-# draw_annot.perc <- function(res){
-#   inter <- length(res$gene[grep("^intergenic\\.NA$", res$gene, perl=T)]) 
-#   proc.inter <- inter /  length(res$gene) * 100
-#   intra <- ((length(res$gene) - inter )/ length(res$gene)) * 100
-#   d <- data.frame(location = c("intergenic", "intragenic"), DMRs = c(proc.inter, intra))
-#   return(d)
-# }
+draw_annot.perc <- function(res){
+  inter <- length(res$gene[grep("^intergenic\\.NA$", res$gene, perl=TRUE)])
+  proc.inter <- inter /  length(res$gene) #* 100
+  intra <- ((length(res$gene) - inter )/ length(res$gene)) #* 100
+  d <- data.frame(location = c("extragenic", "intragenic"), number.DMRs = c(proc.inter, intra))
+  return(d)
+}
 
 #converge info from hypo and hyper
 build_plot <- function(tab1, tab2, orientation, orientation2, drawfunc){
@@ -294,18 +297,19 @@ build_plot <- function(tab1, tab2, orientation, orientation2, drawfunc){
   
   d <- rbind(d1,d2,d3,d4)
   
-  p1 <- ggplot(data=d, aes(x=location, y=number.DMRs, fill = comparison)) + #change number for percentage
+  p1 <- ggplot(data=d, aes(x=location, y=number.DMRs, fill = comparison)) +
     geom_bar(stat="identity", position=position_dodge()) + 
-    theme(legend.position="bottom") +
-    labs(x = "Location", y = "Number of DMRs") +
-    facet_grid(~state)
+    labs(x = "Location", y = "Proportion of DMRs") +
+    facet_grid(~state) +
+    theme_bw() +
+    theme(legend.position="bottom", axis.text.x = element_text(angle = 45, hjust = 1))
   return(p1)
 }
 
 #genic annotation
 draw_annot_genic <- function(res){
-  inter <- length(res$gene[grep("^intergenic\\.NA$", res$gene, perl=T)]) 
-  #proc.inter <- inter /  length(res$gene) * 100
+  inter <- length(res$gene[grep("^intergenic\\.NA$", res$gene, perl=TRUE)]) 
+  #inter <- inter /  length(res$gene) * 100
   intra <- length(res$gene) - inter 
   d <- data.frame(location = c("intergenic", "intragenic"), number.DMRs = c(inter, intra))
   return(d)
@@ -315,13 +319,15 @@ draw_annot_genic <- function(res){
 draw_annot_intragenic <- function(res){
   UTR3 <- grep("3UTR", res$gene)
   res_no3UTR <- res[-UTR3,]
-  proms <- grep("(promoter|1to5kb|5UTR)", res_no3UTR$gene, perl =T)
+  proms <- grep("(promoter|1to5kb|5UTR)", res_no3UTR$gene, perl =TRUE)
   res_no3UTR_noproms <- res_no3UTR[-proms,]
-  gene_body <- grep("(exon|intron|CDS)", res_no3UTR_noproms$gene, perl =T)
-  #res_no3UTR_nogeneb_noproms <- res_no3UTR_noproms[-gene_body,]
-  d <- tibble(location = factor(c("Regulatory region", "Gene body", "3UTR")),
-              number.DMRs = c(length(proms), length(gene_body), length(UTR3)))
-  d$location <- factor(d$location, c("Regulatory region", "Gene body", "3UTR"))
+  gene_body <- grep("(exon|intron|CDS)", res_no3UTR_noproms$gene, perl =TRUE)
+  d <- data.frame(location = factor(c("Regulatory", "Gene body", "3UTR")),
+              #number.DMRs = c(length(proms), length(gene_body), length(UTR3)))
+              number.DMRs = c(length(proms)/length(res$gene), 
+                              length(gene_body)/length(res$gene), 
+                              length(UTR3)/length(res$gene)))
+  d$location <- factor(d$location, c("Regulatory", "Gene body", "3UTR"))
   return(d)
 }
 
@@ -329,7 +335,8 @@ draw_annot_intragenic <- function(res){
 draw_annot_cpg_general <- function(res){
   inter <- length(res$CpG[grep("^inter:[0-9]+$", res$CpG, perl = T)])
   intra <- length(res$CpG) - inter
-  d <- data.frame(location = c("Outside SSI", "SSI"), number.DMRs = c(inter, intra))
+  d <- data.frame(location = c("extra SSI", "SSI"), 
+                  number.DMRs = c(inter/length(res$CpG), intra/length(res$CpG)))
   return(d)
 }
 
@@ -341,8 +348,11 @@ draw_annot_cpg <- function(res){
   res_noisl_noshore <- res_noisl[-shore,]
   shelf <- grep("shelf", res_noisl_noshore$CpG)
   res_noisl_noshore_noshelf <- res_noisl_noshore[-shelf,]
-  d <- tibble(location = factor(c("CpG island", "CpG shore", "CpG shelf")),
-              number.DMRs = c(length(islands), length(shore), length(shelf)))
+  d <- data.frame(location = factor(c("CpG island", "CpG shore", "CpG shelf")),
+              #number.DMRs = c(length(islands), length(shore), length(shelf)))
+              number.DMRs = c(length(islands)/length(res$CpG),
+                              length(shore)/length(res$CpG), 
+                              length(shelf)/length(res$CpG)))
   d$location <- factor(d$location, c("CpG island", "CpG shore", "CpG shelf"))
   return(d)
   
@@ -352,8 +362,16 @@ build_plot(cn.regs, mn.regs, "hyper", "hypo", draw_annot_genic)
 build_plot(cn.regs, mn.regs, "hyper", "hypo", draw_annot_intragenic)
 build_plot(cn.regs, mn.regs, "hyper", "hypo", draw_annot_cpg_general)
 build_plot(cn.regs, mn.regs, "hyper", "hypo", draw_annot_cpg)
-
 dev.off()
+
+#With percentages
+a <- build_plot(cn.regs, mn.regs, "hyper", "hypo", draw_annot.perc)
+b <- build_plot(cn.regs, mn.regs, "hyper", "hypo", draw_annot_intragenic)
+c <- build_plot(cn.regs, mn.regs, "hyper", "hypo", draw_annot_cpg_general)
+d <- build_plot(cn.regs, mn.regs, "hyper", "hypo", draw_annot_cpg)
+
+g <- plot_grid(a,b,c,d, labels = "AUTO", nrow = 2)
+ggplot2::ggsave("myFigs/DMR_annotation_props.png", g, width = 8, height = 7)
 
 #### Annotation plots for TE probes ####
 probes_annot <- get_table_with_annots(probes)

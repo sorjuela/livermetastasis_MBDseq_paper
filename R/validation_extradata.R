@@ -74,6 +74,7 @@ mdsscale <- data.frame(Dim1 = x$cmdscale.out[,1],
 timpmds <- ggplot(mdsscale) +
   geom_point(aes(Dim1,Dim2, color=Tissue), size = 6) +
   geom_text(aes(Dim1,Dim2-0.01, label =Samples), size = 3.5) + 
+  labs(x="dimension 1", y = "dimension 2") +
   theme_bw()
 #ggplot2::ggsave("myFigs/Timpdat_MDS.png")
 timpmds
@@ -124,8 +125,8 @@ a <- ggplot(x, aes(NM, Met)) +
   geom_abline() +
   facet_wrap(~loc, nrow = 2) + 
   theme_bw()+
-  theme(legend.position = "bottom",
-        legend.box = "vertical")
+  labs(x="mean beta value NM", y="mean beta value Met")+
+  theme(legend.position = "none",panel.spacing = unit(0, "lines"))
 
 b <- ggplot(x, aes(NM, CRC)) + 
   geom_bin2d() + 
@@ -133,8 +134,8 @@ b <- ggplot(x, aes(NM, CRC)) +
   geom_abline() +
   facet_wrap(~loc, nrow = 2) +
   theme_bw() +
-  theme(legend.position = "bottom",
-        legend.box = "vertical")
+  labs(x="mean beta value NM", y="mean beta value CRC")+
+  theme(legend.position = "none", panel.spacing = unit(0, "lines"))
 
 c <- ggplot(x, aes(Met, CRC)) + 
   geom_bin2d() + 
@@ -142,15 +143,13 @@ c <- ggplot(x, aes(Met, CRC)) +
   geom_abline() +
   facet_wrap(~loc, nrow = 2) +
   theme_bw() +
-  theme(legend.position = "bottom",
-        legend.box = "vertical")
+  labs(x="mean beta value Met", y="mean beta value CRC")+
+  theme(panel.spacing = unit(0, "lines"))
+  
 
-
-cowplot::plot_grid(a,b,c)
-
-mid <- cowplot::plot_grid(a,b,c, ncol = 3)
+mid <- cowplot::plot_grid(a,b,c, ncol = 3, rel_widths = c(0.75,0.75,1))
 #ggplot2::ggsave("myFigs/Timpdat_betaScatters.png", width = 10, height = 5)
-mid
+
 
 #Make Figure4C-D from Timp paper
 x <- data.frame(meth = c(colMeans(betas),colMeans(betas_isles)),
@@ -164,20 +163,21 @@ mean_mean <- aggregate(meth ~ loc+Tissue, mean, data=x)
 cols <- scales::hue_pal()(3)[c(3,1,2)]
 
 jitt <- ggplot(x,aes(Tissue,meth)) +
-  #geom_jitter(position = position_jitter(seed = 1)) +
-  geom_line(aes(group = Samples), color = "gray") +
-  geom_point(aes(color = Tissue), size = 3) +
+  geom_jitter(aes(color = Tissue), size = 3, width = 0.1) +
+  #geom_line(aes(group = Samples), color = "gray") +
+  #geom_point(aes(color = Tissue), size = 3) +
   theme_bw() +
   geom_crossbar(data=mean_mean, aes(ymin = meth, ymax = meth, color = Tissue),
                 width = 0.5) +
+  geom_text(data=mean_mean, aes(label = round(meth, digits = 3)),
+            vjust = 1, hjust = 0) +
   facet_wrap(~loc,nrow = 2, scales = "free") +
-  ylab("Average methylation") +
+  ylab("mean beta value per sample") +
   scale_color_manual(values = cols)
 
 jitt
 
-cowplot::plot_grid(timpmds,mid,jitt, ncol = 1, nrow = 3, labels = "AUTO",
-                   axis = "r", align ="v", rel_widths = c(1,2,1))
+cowplot::plot_grid(timpmds,mid,jitt, ncol = 1, nrow = 3, labels = "AUTO")
 ggplot2::ggsave("myFigs/Timpdat_suppfig.png", width = 8, height = 11)
 
 
