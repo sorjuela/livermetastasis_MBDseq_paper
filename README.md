@@ -4,7 +4,7 @@
 
 This repository contains the code for the following paper:
 
-* S Orjuela, M Menigatti, P Schraml, P Kambakamba, MD Robinson and G Marra: The DNA hypermethylation phenotype of colorectal cancer liver metastases resembles that of the primary colorectal cancers. (submitted.)
+* S Orjuela, M Menigatti, P Schraml, P Kambakamba, MD Robinson and G Marra: [The DNA hypermethylation phenotype of colorectal cancer liver metastases resembles that of the primary colorectal cancers](https://bmccancer.biomedcentral.com/articles/10.1186/s12885-020-06777-6).
 
 The structure of this repository is as follows:
 
